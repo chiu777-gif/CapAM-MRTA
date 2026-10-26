@@ -1,11 +1,35 @@
 Learning Scalable Policies over Graphs for Multi-Robot Task Allocation using Capsule Attention Networks
 (CapAM)
 
+[中文使用说明书：安装、训练、评估、命令与参数说明](README.zh-CN.md)
+
+The current entry points separate uniformly generated training scenarios from fixed test data.
+Environment arguments use physical paper units: `--agent_max_speed 1` is converted
+to `0.01` together with coordinates divided by 100. See the Chinese manual for the
+updated data format, checkpoint compatibility, and complete examples.
+
+Select `--encoder gcapcn` (default, one capsule layer) or `--encoder am`
+(three self-attention layers by default; configurable with `--n_encode_layers`).
+`--encoder mamba` selects a pure PyTorch Mamba-1 encoder (three layers by default,
+RMSNorm, state dimension 8, expansion 1, convolution width 2). Its MRTA adapter
+sorts tasks by coordinates and deadline, then restores the original task IDs;
+duplicate feature vectors share a pooled representation. The reference scan
+does not use optimized CUDA kernels and makes no throughput guarantee.
+All three share the MRTA decoder and training objective. Evaluation with `eval.py` or
+`z_test/evaluate.py` reads the encoder from the saved `args.json`; existing
+checkpoints without this field continue to load as GCAPCN.
+
+```bash
+python run.py --graph_size 10 --n_agents 2 --batch_size 2 --epoch_size 4 --val_size 4 --eval_batch_size 2 --n_epochs 1 --no_cuda
+python generate_mrta_data.py --graph_sizes 10 --n_agents 2 --dataset_size 8 --filename data/custom/uniform_10.pkl
+python eval.py --model outputs/mrta_10/REPLACE_WITH_RUN_DIRECTORY --datasets data/custom/uniform_10.pkl --no_cuda -o results/uniform_10.json
+```
+
 This repository contains the code for the implementation of Capsule based attention networks aka CapAM, for solving a Single-Task Robot Single Robot-Task (SR-ST) Multi-Robot Task Allocation problem.
 Environment:
     The SR-ST MRTA environment can be initialized using the MRTA class inside problem/mrta/problem_mrta.py. All the state space variables and the necessary functions
     to update the state space are implemented using the StateMRTA class inside problem/mrta/state_mrta.py
-The training.py implements a REINFORCE algorithm
+The train.py implements a REINFORCE algorithm
 
 ![](gif_latest.gif)
 
@@ -18,8 +42,9 @@ How to use the code:
         We recommend using a GPU for training.
 
     Evaluation:
-        The datasets for testing can be found inside the directory named 'data'. Run the eval.py file with the path to the dataset, specify the number of tasks,
-        and the number of agents.
+        Run eval.py with --model and --datasets. Task and robot counts come from the fixed input files.
+        Use data/mrta_gini to load the original 96 TAPTC text cases directly, or generate versioned data as shown above.
+        The old tuple datasets under data/mrta are incompatible with the current workload/robot schema.
 
     Test data generation:
         More test data with varying number of taks can be generated using the script generate_mrta_data.py

@@ -1,12 +1,11 @@
 import torch
 from torch import nn
-from torch.utils.checkpoint import checkpoint
 import math
 from typing import NamedTuple
 from utils.tensor_functions import compute_in_batches
-import time
 
-from nets.graph_encoder import  GCAPCN
+from nets.graph_encoder import AMEncoder, GCAPCN
+from nets.mamba_encoder import MambaEncoder
 from torch.nn import DataParallel
 from utils.beam_search import CachedLookup
 from utils.functions import sample_many
@@ -38,7 +37,7 @@ class AttentionModelFixed(NamedTuple):
                 glimpse_val=self.glimpse_val[:, key],  # dim 0 are the heads
                 logit_key=self.logit_key[key]
             )
-        return super(AttentionModelFixed, self).__getitem__(key)
+        return tuple.__getitem__(self, key)
 
 
 class AttentionModel(nn.Module):
@@ -47,16 +46,25 @@ class AttentionModel(nn.Module):
                  embedding_dim,
                  hidden_dim,
                  problem,
-                 n_encode_layers=2,
+                 n_encode_layers=None,
                  tanh_clipping=10.,
                  mask_inner=True,
                  mask_logits=True,
                  normalization='batch',
                  n_heads=8,
                  checkpoint_encoder=False,
-                 shrink_size=None):
+                 shrink_size=None,
+                 legacy_mode=False,
+                 encoder='gcapcn'):
         super(AttentionModel, self).__init__()
 
+        self.encoder = encoder.lower()
+        if self.encoder not in ('gcapcn', 'am', 'mamba'):
+            raise ValueError('Unknown encoder: {}'.format(encoder))
+        if n_encode_layers is None:
+            n_encode_layers = 1 if self.encoder == 'gcapcn' else 3
+        if n_encode_layers < 1:
+            raise ValueError('n_encode_layers must be positive')
         self.embedding_dim = embedding_dim
         self.hidden_dim = hidden_dim
         self.n_encode_layers = n_encode_layers
@@ -73,7 +81,11 @@ class AttentionModel(nn.Module):
         self.n_heads = n_heads
         self.checkpoint_encoder = checkpoint_encoder
         self.shrink_size = shrink_size
-        torch.autograd.set_detect_anomaly(True)
+        if self.encoder == 'gcapcn' and n_encode_layers != 1:
+            raise ValueError('Current GCAPCN has one capsule layer; n_encode_layers must be 1')
+        if checkpoint_encoder or shrink_size is not None:
+            raise ValueError('checkpoint_encoder and shrink_size are not supported by MRTA')
+        self.legacy_mode = legacy_mode
         self.robots_state_query_embed = nn.Linear(3, embedding_dim)
         self.robot_taking_decision_query = nn.Linear(3, embedding_dim)
 
@@ -91,7 +103,13 @@ class AttentionModel(nn.Module):
 
         self.init_embed = nn.Linear(node_dim, embedding_dim)
 
-        self.embedder = GCAPCN()
+        if self.encoder == 'gcapcn':
+            self.embedder = GCAPCN(n_dim=embedding_dim, normalization=normalization, legacy_mode=legacy_mode)
+        elif self.encoder == 'am':
+            self.embedder = AMEncoder(n_dim=embedding_dim, n_layers=n_encode_layers,
+                                      n_heads=n_heads, normalization=normalization)
+        else:
+            self.embedder = MambaEncoder(n_dim=embedding_dim, n_layers=n_encode_layers)
 
         # For each node we compute (glimpse key, glimpse value, logit key) so 3 * embedding_dim
         self.project_node_embeddings = nn.Linear(embedding_dim, 3 * embedding_dim, bias=False)
@@ -115,14 +133,7 @@ class AttentionModel(nn.Module):
         :return:
         """
 
-        if self.checkpoint_encoder and self.training:  # Only checkpoint if we need gradients
-            embeddings, _ = checkpoint(self.embedder, self._init_embed(input))
-        else:
-            import time
-            # start_time = time.time()
-            # embeddings, _ = self.embedder(self._init_embed(input))
-            embeddings, _ = self.embedder(input)
-            # end_time = time.time() - start_time
+        embeddings, _ = self.embedder(input)
 
         _log_p, pi, cost = self._inner(input, embeddings)
         # cos, mask = self.problem.get_costs(input, pi)
@@ -139,7 +150,7 @@ class AttentionModel(nn.Module):
         return self.problem.beam_search(*args, **kwargs, model=self)
 
     def precompute_fixed(self, input):
-        embeddings, _ = self.embedder(self._init_embed(input))
+        embeddings, _ = self.embedder(input)
         # Use a CachedLookup such that if we repeatedly index this object with the same index we only need to do
         # the lookup once... this is the case if all elements in the batch have maximum batch size
         return CachedLookup(self._precompute(embeddings))
@@ -204,125 +215,25 @@ class AttentionModel(nn.Module):
         )
         # TSP
 
-    def _inner_eval(self, input, embeddings):
-
-        outputs = []
-        sequences = []
-
+    def _decode(self, input, embeddings):
+        outputs, sequences = [], []
         state = self.problem.make_state(input)
-        # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
         fixed = self._precompute(embeddings)
-
-        batch_size = state.ids.size(0)
-
-        # Perform decoding steps
-        i = 0
-
-        time_sl = []
-        while not (self.shrink_size is None and not (state.all_finished().item() == 0)):
-            start_time = time.time()
-
-            if self.shrink_size is not None:
-                unfinished = torch.nonzero(state.get_finished() == 0)
-                if len(unfinished) == 0:
-                    break
-                unfinished = unfinished[:, 0]
-                # Check if we can shrink by at least shrink_size and if this leaves at least 16
-                # (otherwise batch norm will not work well and it is inefficient anyway)
-                if 16 <= len(unfinished) <= state.ids.size(0) - self.shrink_size:
-                    # Filter states
-                    state = state[unfinished]
-                    fixed = fixed[unfinished]
-
+        while not state.all_finished():
             log_p, mask = self._get_log_p(fixed, state)
-
-            # Select the indices of the next nodes in the sequences, result (batch_size) long
-            selected = self._select_node(log_p.exp()[:, 0, :], mask[:, 0, :])  # Squeeze out steps dimension
-            end_time1 = time.time() - start_time
+            selected = self._select_node(log_p.exp()[:, 0, :], mask[:, 0, :])
             state = state.update(selected)
-            start_time2 = time.time()
-
-            # Now make log_p, selected desired output size by 'unshrinking'
-            if self.shrink_size is not None and state.ids.size(0) < batch_size:
-                log_p_, selected_ = log_p, selected
-                log_p = log_p_.new_zeros(batch_size, *log_p_.size()[1:])
-                selected = selected_.new_zeros(batch_size)
-
-                log_p[state.ids[:, 0]] = log_p_
-                selected[state.ids[:, 0]] = selected_
-
-            # Collect output of step
             outputs.append(log_p[:, 0, :])
             sequences.append(selected)
+        return torch.stack(outputs, 1), torch.stack(sequences, 1), state
 
-            i += 1
-            end_time2 = time.time() - start_time2
-            time_sl.append(end_time1 + end_time2)
-
-
-        cost = (torch.div(state.tasks_finish_time, state.deadline) * (
-                    torch.div(state.tasks_finish_time, state.deadline) > 1).to(torch.int64)).sum(-1)
-
-        return torch.stack(outputs, 1), torch.stack(sequences, 1), cost, state.tasks_done_success.tolist()
+    def _inner_eval(self, input, embeddings):
+        log_p, pi, state = self._decode(input, embeddings)
+        return log_p, pi, state.get_final_cost().squeeze(-1), state.tasks_done_success
 
     def _inner(self, input, embeddings):
-
-        outputs = []
-        sequences = []
-
-        state = self.problem.make_state(input)
-        # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
-        fixed = self._precompute(embeddings)
-
-        batch_size = state.ids.size(0)
-
-        # Perform decoding steps
-        i = 0
-
-
-        # initial tasks
-        while not (self.shrink_size is None and not (state.all_finished().item() == 0)):
-
-            if self.shrink_size is not None:
-                unfinished = torch.nonzero(state.get_finished() == 0)
-                if len(unfinished) == 0:
-                    break
-                unfinished = unfinished[:, 0]
-                # Check if we can shrink by at least shrink_size and if this leaves at least 16
-                # (otherwise batch norm will not work well and it is inefficient anyway)
-                if 16 <= len(unfinished) <= state.ids.size(0) - self.shrink_size:
-                    # Filter states
-                    state = state[unfinished]
-                    fixed = fixed[unfinished]
-
-            # Only the required ones goes here, so we should
-            #  We need a variable that track which all tasks are available
-            log_p, mask = self._get_log_p(fixed, state)
-
-            # Select the indices of the next nodes in the sequences, result (batch_size) long
-            selected = self._select_node(log_p.exp()[:, 0, :], mask[:, 0, :])  # Squeeze out steps dimension
-
-            state = state.update(selected)
-
-            # Now make log_p, selected desired output size by 'unshrinking'
-            if self.shrink_size is not None and state.ids.size(0) < batch_size:
-                log_p_, selected_ = log_p, selected
-                log_p = log_p_.new_zeros(batch_size, *log_p_.size()[1:])
-                selected = selected_.new_zeros(batch_size)
-
-                log_p[state.ids[:, 0]] = log_p_
-                selected[state.ids[:, 0]] = selected_
-
-            # Collect output of step
-            outputs.append(log_p[:, 0, :])
-            sequences.append(selected)
-
-            i += 1
-
-        cost = (torch.div(state.tasks_finish_time, state.deadline) * (
-                    torch.div(state.tasks_finish_time, state.deadline) > 1).to(torch.int64)).sum(-1)
-
-        return torch.stack(outputs, 1), torch.stack(sequences, 1), cost
+        log_p, pi, state = self._decode(input, embeddings)
+        return log_p, pi, state.get_final_cost().squeeze(-1)
 
     def sample_many(self, input, batch_rep=1, iter_rep=1):
         """
@@ -442,7 +353,11 @@ class AttentionModel(nn.Module):
                                           state.robots_work_capacity[state.ids, state.robot_taking_decision]),
                                          -1)  # add depot info here??
 
-        robots_states_embedding = self.robots_state_query_embed(current_robot_states).sum(-2)
+        robot_embeddings = self.robots_state_query_embed(current_robot_states)
+        # Mask after the affine map so padded robots do not contribute its bias.
+        if not self.legacy_mode:
+            robot_embeddings = robot_embeddings * working_robots[:, :, None]
+        robots_states_embedding = robot_embeddings.sum(-2)
         decision_robot_state_embedding = self.robot_taking_decision_query(decision_robot_state)
         return torch.cat((state.next_decision_time[:, :, None], decision_robot_state_embedding[:, None],
                           robots_states_embedding[:, None]), -1)

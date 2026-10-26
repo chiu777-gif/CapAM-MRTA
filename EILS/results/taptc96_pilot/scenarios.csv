@@ -1,0 +1,5 @@
+algorithm,profile,repeat,scenario_index,instance,deadline_group,seed,task_count,n_agents,tasks_done,cost,completion_percent,native_completed_tasks,iterations,best_iteration,inference_seconds,cpu_seconds
+ils,tight,0,0,/home/hustcsib/chiu_code/CapAM-MRTA/data/mrta_gini/group1/r11a2i00.txt,tight,20261025,100,2,24,222.93566379767327,24.0,24,2,1,0.0008386301342397928,0.0008444149999995432
+eils,tight,0,0,/home/hustcsib/chiu_code/CapAM-MRTA/data/mrta_gini/group1/r11a2i00.txt,tight,20261025,100,2,24,222.93566379767327,24.0,24,1,1,0.0004896379541605711,0.0004953099999998045
+ils,slack,0,0,/home/hustcsib/chiu_code/CapAM-MRTA/data/mrta_gini/group1/r11a2i00.txt,tight,20261025,100,2,24,222.93566379767327,24.0,24,2,1,0.00047620409168303013,0.0004833109999999863
+eils,slack,0,0,/home/hustcsib/chiu_code/CapAM-MRTA/data/mrta_gini/group1/r11a2i00.txt,tight,20261025,100,2,24,222.93566379767327,24.0,24,1,1,0.00045030703768134117,0.00045746599999851867

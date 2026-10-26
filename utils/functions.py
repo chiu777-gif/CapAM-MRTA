@@ -3,6 +3,8 @@ import torch
 import numpy as np
 import os
 import json
+import inspect
+from pathlib import Path
 # from tqdm import tqdm
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing import Pool
@@ -20,7 +22,11 @@ def load_problem(name):
 
 
 def torch_load_cpu(load_path):
-    return torch.load(load_path, map_location=lambda storage, loc: storage)  # Load on CPU
+    kwargs = {'map_location': 'cpu'}
+    # Trusted project checkpoints also contain optimizer/RNG/dataset objects.
+    if 'weights_only' in inspect.signature(torch.load).parameters:
+        kwargs['weights_only'] = False
+    return torch.load(load_path, **kwargs)
 
 
 def move_to(var, device):
@@ -73,52 +79,39 @@ def load_args(filename):
 
 def load_model(path, epoch=None):
     from nets.attention_model import AttentionModel
-    from nets.pointer_network import PointerNetwork
-
-    if os.path.isfile(path):
+    path = Path(path)
+    if path.is_file():
         model_filename = path
-        path = os.path.dirname(model_filename)
-    elif os.path.isdir(path):
+        directory = path.parent
+    elif path.is_dir():
+        directory = path
         if epoch is None:
-            epoch = max(
-                int(os.path.splitext(filename)[0].split("-")[1])
-                for filename in os.listdir(path)
-                if os.path.splitext(filename)[1] == '.pt'
-            )
-        model_filename = os.path.join(path, 'epoch-{}.pt'.format(epoch))
+            epochs = [int(item.stem.split('-')[1]) for item in path.glob('epoch-*.pt')]
+            if not epochs:
+                raise FileNotFoundError('No epoch checkpoints in {}'.format(path))
+            epoch = max(epochs)
+        model_filename = path / 'epoch-{}.pt'.format(epoch)
     else:
-        assert False, "{} is not a valid directory or file".format(path)
-
-    args = load_args(os.path.join(path, 'args.json'))
-
-    problem = load_problem(args['problem'])
-
-    model_class = {
-        'attention': AttentionModel,
-        'pointer': PointerNetwork
-    }.get(args.get('model', 'attention'), None)
-    assert model_class is not None, "Unknown model: {}".format(model_class)
-
-    model = model_class(
-        args['embedding_dim'],
-        args['hidden_dim'],
-        problem,
-        n_encode_layers=args['n_encode_layers'],
-        mask_inner=True,
-        mask_logits=True,
-        normalization=args['normalization'],
-        tanh_clipping=args['tanh_clipping'],
-        checkpoint_encoder=args.get('checkpoint_encoder', False),
-        shrink_size=args.get('shrink_size', None)
-    )
-    # Overwrite model parameters by parameters to load
-    load_data = torch_load_cpu(model_filename)
-    model.load_state_dict({**model.state_dict(), **load_data.get('model', {})})
-
-    model, *_ = _load_model_file(model_filename, model)
-
-    # model.eval()  # Put in eval mode
-
+        raise FileNotFoundError('Model does not exist: {}'.format(path))
+    args = load_args(str(directory / 'args.json'))
+    if args.get('model', 'attention') != 'attention':
+        raise ValueError('Only the MRTA attention model is supported')
+    from problems.mrta.config import DATA_VERSION
+    legacy = args.get('network_version', 1) < DATA_VERSION
+    encoder = args.get('encoder', 'gcapcn').lower()
+    # Old GCAPCN runs may record a layer count that was never used.
+    layers = 1 if encoder == 'gcapcn' else args.get('n_encode_layers')
+    model = AttentionModel(
+        args['embedding_dim'], args.get('hidden_dim', args['embedding_dim']),
+        load_problem(args['problem']), n_encode_layers=layers,
+        normalization=args['normalization'], tanh_clipping=args['tanh_clipping'],
+        legacy_mode=legacy, encoder=encoder)
+    args['encoder'] = model.encoder
+    args['n_encode_layers'] = model.n_encode_layers
+    checkpoint = torch_load_cpu(str(model_filename))
+    model.load_state_dict(checkpoint.get('model', checkpoint), strict=True)
+    model.eval()
+    print('  [*] Loaded model from {}'.format(model_filename))
     return model, args
 
 
@@ -172,35 +165,19 @@ def do_batch_rep(v, n):
 
 
 def sample_many(inner_func, get_cost_func, input, batch_rep=1, iter_rep=1):
-    """
-    :param input: (batch_size, graph_size, node_dim) input node features
-    :return:
-    """
-    input = do_batch_rep(input, batch_rep)
-
-    costs = []
-    pis = []
-    tasks_done = None
-    for i in range(iter_rep):
-        _log_p, pi, cost, tasks_done = inner_func(input)
-        # pi.view(-1, batch_rep, pi.size(-1))
-        # cos, mask = get_cost_func(input, pi)
-        mask = None
-        # tasks_done.append(tasks_success)
-        costs.append(cost.view(batch_rep, -1).t())
-        pis.append(pi.view(batch_rep, -1, pi.size(-1)).transpose(0, 1))
-
-    max_length = max(pi.size(-1) for pi in pis)
-    # (batch_size * batch_rep, iter_rep, max_length) => (batch_size, batch_rep * iter_rep, max_length)
-    pis = torch.cat(
-        [F.pad(pi, (0, max_length - pi.size(-1))) for pi in pis],
-        1
-    )  # .view(embeddings.size(0), batch_rep * iter_rep, max_length)
-    costs = torch.cat(costs, 1)
-
-    # (batch_size)
-    mincosts, argmincosts = costs.min(-1)
-    # (batch_size, minlength)
-    minpis = pis[torch.arange(pis.size(0), out=argmincosts.new()), argmincosts]
-
-    return minpis, mincosts, tasks_done
+    """Select cost, sequence AND completion count from the same sampled solution."""
+    if batch_rep < 1 or iter_rep < 1:
+        raise ValueError('Sampling repetition counts must be positive')
+    repeated = do_batch_rep(input, batch_rep)
+    costs, sequences, successes = [], [], []
+    for _ in range(iter_rep):
+        _, pi, cost, done = inner_func(repeated)
+        costs.append(cost.reshape(batch_rep, -1).t())
+        sequences.append(pi.reshape(batch_rep, -1, pi.size(-1)).transpose(0, 1))
+        successes.append(torch.as_tensor(done, device=cost.device).reshape(batch_rep, -1).t())
+    costs = torch.cat(costs, dim=1)
+    sequences = torch.cat(sequences, dim=1)
+    successes = torch.cat(successes, dim=1)
+    best_cost, best = costs.min(dim=1)
+    rows = torch.arange(costs.size(0), device=costs.device)
+    return sequences[rows, best], best_cost, successes[rows, best, None].tolist()

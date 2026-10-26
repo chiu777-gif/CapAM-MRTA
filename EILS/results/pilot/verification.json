@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "solutions_replayed": 20,
+  "groups_verified": 12,
+  "dataset_sha256": "cd11acb2ea58525f99f7bdcd6cef862e2c4ecc31676c6b8362fd3d2403f97bc9",
+  "matched_models_verified": 0,
+  "deadline_groups_verified": 0,
+  "checks": [
+    "dataset identity",
+    "all algorithm/profile/scenario/repeat combinations present exactly once",
+    "all tasks assigned once to active robots",
+    "full route finish times",
+    "native completion unchanged",
+    "saved cost and completion",
+    "seed derivation",
+    "iteration/timing validity",
+    "group and overall summaries"
+  ]
+}

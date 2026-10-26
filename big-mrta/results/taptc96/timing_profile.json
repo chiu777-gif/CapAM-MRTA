@@ -1,0 +1,1249 @@
+{
+  "note": "cProfile instrumentation on 8 representative scenarios (one per deadline group and robot count); profiled times are not replacement benchmark latencies",
+  "scenarios": 8,
+  "cpu_threads": 1,
+  "protocols": {
+    "upstream_taptc": {
+      "profile_total_seconds": 1.4216257580000002,
+      "function_stats": [
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 120,
+          "function": "solve_upstream",
+          "calls": 8,
+          "self_seconds": 0.031196666,
+          "cumulative_seconds": 1.42162373
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 112,
+          "function": "choose",
+          "calls": 1738,
+          "self_seconds": 0.0028102690000000002,
+          "cumulative_seconds": 1.37238231
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 37,
+          "function": "getNextTask",
+          "calls": 1738,
+          "self_seconds": 0.60622133,
+          "cumulative_seconds": 1.369572041
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 213,
+          "function": "maximum_weight_full_matching",
+          "calls": 480,
+          "self_seconds": 0.015806844,
+          "cumulative_seconds": 0.41369860900000005
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/algorithms/bipartite/matrix.py",
+          "line": 14,
+          "function": "biadjacency_matrix",
+          "calls": 480,
+          "self_seconds": 0.049764403000000006,
+          "cumulative_seconds": 0.382592295
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 863,
+          "function": "add_edge",
+          "calls": 125808,
+          "self_seconds": 0.19195071700000002,
+          "cumulative_seconds": 0.230995641
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/algorithms/bipartite/matrix.py",
+          "line": 100,
+          "function": "<genexpr>",
+          "calls": 126273,
+          "self_seconds": 0.056527178000000004,
+          "cumulative_seconds": 0.12412814600000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 348,
+          "function": "asformat",
+          "calls": 480,
+          "self_seconds": 0.001153359,
+          "cumulative_seconds": 0.088003545
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 372,
+          "function": "tocsr",
+          "calls": 480,
+          "self_seconds": 0.006468417000000001,
+          "cumulative_seconds": 0.08643403100000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 127,
+          "function": "__init__",
+          "calls": 480,
+          "self_seconds": 0.0050828240000000005,
+          "cumulative_seconds": 0.082536021
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1802,
+          "function": "size",
+          "calls": 2184,
+          "self_seconds": 0.005028943,
+          "cumulative_seconds": 0.067890358
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 845,
+          "function": "__iter__",
+          "calls": 126273,
+          "self_seconds": 0.041142651,
+          "cumulative_seconds": 0.054981992
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1838,
+          "function": "<genexpr>",
+          "calls": 87973,
+          "self_seconds": 0.018486731000000003,
+          "cumulative_seconds": 0.052504431000000004
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 567,
+          "function": "add_nodes_from",
+          "calls": 3476,
+          "self_seconds": 0.042444716,
+          "cumulative_seconds": 0.052172094
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 26,
+          "function": "__init__",
+          "calls": 480,
+          "self_seconds": 0.0040953990000000004,
+          "cumulative_seconds": 0.04625114
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 147,
+          "function": "get_index_dtype",
+          "calls": 2400,
+          "self_seconds": 0.022680795,
+          "cumulative_seconds": 0.043863593
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 527,
+          "function": "__iter__",
+          "calls": 87973,
+          "self_seconds": 0.027986799000000003,
+          "cumulative_seconds": 0.034017700000000005
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 266,
+          "function": "_check",
+          "calls": 480,
+          "self_seconds": 0.012199777,
+          "cumulative_seconds": 0.032279043
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1845,
+          "function": "number_of_edges",
+          "calls": 480,
+          "self_seconds": 0.000532516,
+          "cumulative_seconds": 0.026227969
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 136,
+          "function": "check_format",
+          "calls": 480,
+          "self_seconds": 0.009580017000000001,
+          "cumulative_seconds": 0.024033973
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 238,
+          "function": "isshape",
+          "calls": 960,
+          "self_seconds": 0.002795974,
+          "cumulative_seconds": 0.014653371
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 774,
+          "function": "<lambda>",
+          "calls": 125793,
+          "self_seconds": 0.012661537,
+          "cumulative_seconds": 0.012661537
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 216,
+          "function": "isintlike",
+          "calls": 480,
+          "self_seconds": 0.000989488,
+          "cumulative_seconds": 0.011857397
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 87,
+          "function": "matrices",
+          "calls": 8,
+          "self_seconds": 0.003888537,
+          "cumulative_seconds": 0.0101279
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 135,
+          "function": "getdata",
+          "calls": 480,
+          "self_seconds": 0.000608,
+          "cumulative_seconds": 0.007580857000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 295,
+          "function": "check_shape",
+          "calls": 960,
+          "self_seconds": 0.0038461030000000005,
+          "cumulative_seconds": 0.00712003
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 291,
+          "function": "nnz",
+          "calls": 3932,
+          "self_seconds": 0.0022025720000000003,
+          "cumulative_seconds": 0.006996887
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1111,
+          "function": "sum_duplicates",
+          "calls": 480,
+          "self_seconds": 0.000372749,
+          "cumulative_seconds": 0.006984452
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1048,
+          "function": "toarray",
+          "calls": 480,
+          "self_seconds": 0.002180532,
+          "cumulative_seconds": 0.006665811000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1168,
+          "function": "prune",
+          "calls": 503,
+          "self_seconds": 0.003029808,
+          "cumulative_seconds": 0.006202965
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1081,
+          "function": "__get_has_canonical_format",
+          "calls": 480,
+          "self_seconds": 0.001460465,
+          "cumulative_seconds": 0.006053496
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 337,
+          "function": "__init__",
+          "calls": 1738,
+          "self_seconds": 0.003796273,
+          "cumulative_seconds": 0.005798368000000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 1097,
+          "function": "__call__",
+          "calls": 480,
+          "self_seconds": 0.000746943,
+          "cumulative_seconds": 0.005275654
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 760,
+          "function": "__init__",
+          "calls": 480,
+          "self_seconds": 0.0013339,
+          "cumulative_seconds": 0.004528711
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1416,
+          "function": "degree",
+          "calls": 1738,
+          "self_seconds": 0.001330571,
+          "cumulative_seconds": 0.003932848
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method scipy.optimize._lsap.linear_sum_assignment>",
+          "calls": 480,
+          "self_seconds": 0.0037556750000000004,
+          "cumulative_seconds": 0.0037556750000000004
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 424,
+          "function": "__call__",
+          "calls": 3922,
+          "self_seconds": 0.002325202,
+          "cumulative_seconds": 0.0037178450000000004
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 240,
+          "function": "getnnz",
+          "calls": 1920,
+          "self_seconds": 0.0029712980000000003,
+          "cumulative_seconds": 0.003682447
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 48,
+          "function": "n_robots",
+          "calls": 10151,
+          "self_seconds": 0.002436231,
+          "cumulative_seconds": 0.003372537
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 300,
+          "function": "<dictcomp>",
+          "calls": 480,
+          "self_seconds": 0.0032571460000000003,
+          "cumulative_seconds": 0.0032571460000000003
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 83,
+          "function": "_csr_container",
+          "calls": 480,
+          "self_seconds": 0.0023481220000000002,
+          "cumulative_seconds": 0.003252336
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 1287,
+          "function": "_process_toarray_args",
+          "calls": 480,
+          "self_seconds": 0.000865664,
+          "cumulative_seconds": 0.0026524170000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 417,
+          "function": "__init__",
+          "calls": 1738,
+          "self_seconds": 0.002046104,
+          "cumulative_seconds": 0.002602277
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_data.py",
+          "line": 20,
+          "function": "__init__",
+          "calls": 960,
+          "self_seconds": 0.0008459030000000001,
+          "cumulative_seconds": 0.002444238
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1897,
+          "function": "nbunch_iter",
+          "calls": 480,
+          "self_seconds": 0.000546947,
+          "cumulative_seconds": 0.00184244
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 308,
+          "function": "<genexpr>",
+          "calls": 2880,
+          "self_seconds": 0.0013459910000000002,
+          "cumulative_seconds": 0.0016461260000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 105,
+          "function": "__init__",
+          "calls": 960,
+          "self_seconds": 0.0015983350000000002,
+          "cumulative_seconds": 0.0015983350000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 518,
+          "function": "__getitem__",
+          "calls": 1738,
+          "self_seconds": 0.001114648,
+          "cumulative_seconds": 0.001392643
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 457,
+          "function": "__contains__",
+          "calls": 480,
+          "self_seconds": 0.001295493,
+          "cumulative_seconds": 0.001295493
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1293,
+          "function": "edges",
+          "calls": 480,
+          "self_seconds": 0.00044888800000000004,
+          "cumulative_seconds": 0.001229131
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 108,
+          "function": "getnnz",
+          "calls": 2012,
+          "self_seconds": 0.001111868,
+          "cumulative_seconds": 0.001111868
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 109,
+          "function": "getdtype",
+          "calls": 480,
+          "self_seconds": 0.001048248,
+          "cumulative_seconds": 0.001048248
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 22,
+          "function": "upcast",
+          "calls": 480,
+          "self_seconds": 0.0005676710000000001,
+          "cumulative_seconds": 0.001038389
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 59,
+          "function": "__set__",
+          "calls": 1738,
+          "self_seconds": 0.001008168,
+          "cumulative_seconds": 0.001008168
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 119,
+          "function": "get_shape",
+          "calls": 4846,
+          "self_seconds": 0.000976404,
+          "cumulative_seconds": 0.000976404
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 749,
+          "function": "__getattr__",
+          "calls": 983,
+          "self_seconds": 0.000960978,
+          "cumulative_seconds": 0.000960978
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 768,
+          "function": "<lambda>",
+          "calls": 480,
+          "self_seconds": 0.000375448,
+          "cumulative_seconds": 0.000839126
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 1065,
+          "function": "__init__",
+          "calls": 480,
+          "self_seconds": 0.000686251,
+          "cumulative_seconds": 0.000780243
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 93,
+          "function": "to_native",
+          "calls": 960,
+          "self_seconds": 0.000716929,
+          "cumulative_seconds": 0.000716929
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 104,
+          "function": "initial_arrays",
+          "calls": 8,
+          "self_seconds": 0.000185192,
+          "cumulative_seconds": 0.000651496
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1103,
+          "function": "__set_has_canonical_format",
+          "calls": 503,
+          "self_seconds": 0.000471744,
+          "cumulative_seconds": 0.00061978
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1943,
+          "function": "bunch_iter",
+          "calls": 2841,
+          "self_seconds": 0.0005435850000000001,
+          "cumulative_seconds": 0.0005435850000000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 439,
+          "function": "__iter__",
+          "calls": 480,
+          "self_seconds": 0.000242803,
+          "cumulative_seconds": 0.00047427600000000004
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 37,
+          "function": "__set__",
+          "calls": 1738,
+          "self_seconds": 0.000470987,
+          "cumulative_seconds": 0.000470987
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 768,
+          "function": "<listcomp>",
+          "calls": 480,
+          "self_seconds": 0.00046367800000000003,
+          "cumulative_seconds": 0.00046367800000000003
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 313,
+          "function": "<genexpr>",
+          "calls": 2880,
+          "self_seconds": 0.000454891,
+          "cumulative_seconds": 0.000454891
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 303,
+          "function": "<dictcomp>",
+          "calls": 480,
+          "self_seconds": 0.00044253600000000005,
+          "cumulative_seconds": 0.00044253600000000005
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_data.py",
+          "line": 23,
+          "function": "_get_dtype",
+          "calls": 960,
+          "self_seconds": 0.000368458,
+          "cumulative_seconds": 0.000368458
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 1301,
+          "function": "isspmatrix",
+          "calls": 480,
+          "self_seconds": 0.00021023300000000002,
+          "cumulative_seconds": 0.000320584
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_csr.py",
+          "line": 231,
+          "function": "_swap",
+          "calls": 2446,
+          "self_seconds": 0.00030571,
+          "cumulative_seconds": 0.00030571
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1159,
+          "function": "sort_indices",
+          "calls": 23,
+          "self_seconds": 5.0156000000000006e-05,
+          "cumulative_seconds": 0.00029681
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1143,
+          "function": "__set_sorted",
+          "calls": 503,
+          "self_seconds": 0.000158545,
+          "cumulative_seconds": 0.000158545
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1127,
+          "function": "__get_sorted",
+          "calls": 23,
+          "self_seconds": 5.0522e-05,
+          "cumulative_seconds": 0.00010881000000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_csr.py",
+          "line": 164,
+          "function": "tocsr",
+          "calls": 480,
+          "self_seconds": 8.6543e-05,
+          "cumulative_seconds": 8.6543e-05
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 44,
+          "function": "n_tasks",
+          "calls": 50,
+          "self_seconds": 4.1137e-05,
+          "cumulative_seconds": 5.9515e-05
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 108,
+          "function": "<listcomp>",
+          "calls": 8,
+          "self_seconds": 2.7549000000000003e-05,
+          "cumulative_seconds": 4.5392e-05
+        }
+      ]
+    },
+    "capam_full_visit": {
+      "profile_total_seconds": 2.1935709910000005,
+      "function_stats": [
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 183,
+          "function": "solve_full_visit",
+          "calls": 8,
+          "self_seconds": 0.062272167,
+          "cumulative_seconds": 2.193569192
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 112,
+          "function": "choose",
+          "calls": 1130,
+          "self_seconds": 0.00371797,
+          "cumulative_seconds": 1.590785388
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 37,
+          "function": "getNextTask",
+          "calls": 1130,
+          "self_seconds": 0.6615520260000001,
+          "cumulative_seconds": 1.5870674180000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 213,
+          "function": "maximum_weight_full_matching",
+          "calls": 810,
+          "self_seconds": 0.024330689000000003,
+          "cumulative_seconds": 0.590180887
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/algorithms/bipartite/matrix.py",
+          "line": 14,
+          "function": "biadjacency_matrix",
+          "calls": 810,
+          "self_seconds": 0.06782434300000001,
+          "cumulative_seconds": 0.543329205
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/problems/mrta/state_mrta.py",
+          "line": 102,
+          "function": "update",
+          "calls": 800,
+          "self_seconds": 0.316959333,
+          "cumulative_seconds": 0.49352810100000005
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 863,
+          "function": "add_edge",
+          "calls": 151644,
+          "self_seconds": 0.16430592800000002,
+          "cumulative_seconds": 0.210980982
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/algorithms/bipartite/matrix.py",
+          "line": 100,
+          "function": "<genexpr>",
+          "calls": 152445,
+          "self_seconds": 0.065872157,
+          "cumulative_seconds": 0.146796051
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 348,
+          "function": "asformat",
+          "calls": 810,
+          "self_seconds": 0.001995611,
+          "cumulative_seconds": 0.146454463
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 372,
+          "function": "tocsr",
+          "calls": 810,
+          "self_seconds": 0.010358589000000001,
+          "cumulative_seconds": 0.143719108
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 127,
+          "function": "__init__",
+          "calls": 810,
+          "self_seconds": 0.008114521000000001,
+          "cumulative_seconds": 0.126767391
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 26,
+          "function": "__init__",
+          "calls": 810,
+          "self_seconds": 0.00669927,
+          "cumulative_seconds": 0.075670234
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1802,
+          "function": "size",
+          "calls": 1906,
+          "self_seconds": 0.005892086,
+          "cumulative_seconds": 0.075552465
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 147,
+          "function": "get_index_dtype",
+          "calls": 4050,
+          "self_seconds": 0.037563660000000006,
+          "cumulative_seconds": 0.072335652
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 845,
+          "function": "__iter__",
+          "calls": 152445,
+          "self_seconds": 0.048284518000000005,
+          "cumulative_seconds": 0.06552994100000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1838,
+          "function": "<genexpr>",
+          "calls": 96277,
+          "self_seconds": 0.020284152,
+          "cumulative_seconds": 0.057983931
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 567,
+          "function": "add_nodes_from",
+          "calls": 2260,
+          "self_seconds": 0.047659185,
+          "cumulative_seconds": 0.057376309
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 266,
+          "function": "_check",
+          "calls": 810,
+          "self_seconds": 0.020016157,
+          "cumulative_seconds": 0.05289871
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 136,
+          "function": "check_format",
+          "calls": 810,
+          "self_seconds": 0.015706690000000002,
+          "cumulative_seconds": 0.038723695
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 527,
+          "function": "__iter__",
+          "calls": 96277,
+          "self_seconds": 0.031136398000000003,
+          "cumulative_seconds": 0.037699779
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1845,
+          "function": "number_of_edges",
+          "calls": 810,
+          "self_seconds": 0.0008589260000000001,
+          "cumulative_seconds": 0.034522147
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 238,
+          "function": "isshape",
+          "calls": 1620,
+          "self_seconds": 0.004662904000000001,
+          "cumulative_seconds": 0.021287994
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 216,
+          "function": "isintlike",
+          "calls": 810,
+          "self_seconds": 0.001619194,
+          "cumulative_seconds": 0.016625090000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 774,
+          "function": "<lambda>",
+          "calls": 151635,
+          "self_seconds": 0.015380436,
+          "cumulative_seconds": 0.015380436
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1111,
+          "function": "sum_duplicates",
+          "calls": 810,
+          "self_seconds": 0.0010494220000000002,
+          "cumulative_seconds": 0.014997125000000002
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 291,
+          "function": "nnz",
+          "calls": 7224,
+          "self_seconds": 0.003858998,
+          "cumulative_seconds": 0.011807069
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 295,
+          "function": "check_shape",
+          "calls": 1620,
+          "self_seconds": 0.006200974000000001,
+          "cumulative_seconds": 0.011672816
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1168,
+          "function": "prune",
+          "calls": 996,
+          "self_seconds": 0.0056811430000000005,
+          "cumulative_seconds": 0.011498788000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1048,
+          "function": "toarray",
+          "calls": 810,
+          "self_seconds": 0.003445416,
+          "cumulative_seconds": 0.009865927
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1081,
+          "function": "__get_has_canonical_format",
+          "calls": 810,
+          "self_seconds": 0.0023565440000000003,
+          "cumulative_seconds": 0.009843527000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 135,
+          "function": "getdata",
+          "calls": 810,
+          "self_seconds": 0.001020807,
+          "cumulative_seconds": 0.009457333
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 1097,
+          "function": "__call__",
+          "calls": 810,
+          "self_seconds": 0.001353468,
+          "cumulative_seconds": 0.009032835000000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 87,
+          "function": "matrices",
+          "calls": 8,
+          "self_seconds": 0.003031217,
+          "cumulative_seconds": 0.00840861
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 760,
+          "function": "__init__",
+          "calls": 810,
+          "self_seconds": 0.002372837,
+          "cumulative_seconds": 0.007679367
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/problems/mrta/state_mrta.py",
+          "line": 55,
+          "function": "initialize",
+          "calls": 8,
+          "self_seconds": 0.002145848,
+          "cumulative_seconds": 0.006819104
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 337,
+          "function": "__init__",
+          "calls": 1130,
+          "self_seconds": 0.004087708000000001,
+          "cumulative_seconds": 0.006292085
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_coo.py",
+          "line": 240,
+          "function": "getnnz",
+          "calls": 3240,
+          "self_seconds": 0.0047345090000000005,
+          "cumulative_seconds": 0.005876903
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 83,
+          "function": "_csr_container",
+          "calls": 810,
+          "self_seconds": 0.003690262,
+          "cumulative_seconds": 0.005196961
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 300,
+          "function": "<dictcomp>",
+          "calls": 810,
+          "self_seconds": 0.0050296180000000005,
+          "cumulative_seconds": 0.0050296180000000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method scipy.optimize._lsap.linear_sum_assignment>",
+          "calls": 810,
+          "self_seconds": 0.004947484,
+          "cumulative_seconds": 0.004947484
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_data.py",
+          "line": 20,
+          "function": "__init__",
+          "calls": 1620,
+          "self_seconds": 0.001476141,
+          "cumulative_seconds": 0.004450858
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1416,
+          "function": "degree",
+          "calls": 1130,
+          "self_seconds": 0.00145932,
+          "cumulative_seconds": 0.004179371
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 424,
+          "function": "__call__",
+          "calls": 3036,
+          "self_seconds": 0.0025821520000000003,
+          "cumulative_seconds": 0.0039098760000000005
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 1287,
+          "function": "_process_toarray_args",
+          "calls": 810,
+          "self_seconds": 0.0013885660000000001,
+          "cumulative_seconds": 0.003875634
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1897,
+          "function": "nbunch_iter",
+          "calls": 810,
+          "self_seconds": 0.0008914140000000001,
+          "cumulative_seconds": 0.003267223
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 105,
+          "function": "__init__",
+          "calls": 1620,
+          "self_seconds": 0.002974717,
+          "cumulative_seconds": 0.002974717
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 308,
+          "function": "<genexpr>",
+          "calls": 4860,
+          "self_seconds": 0.002225468,
+          "cumulative_seconds": 0.0027206820000000003
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 417,
+          "function": "__init__",
+          "calls": 1130,
+          "self_seconds": 0.0021911870000000003,
+          "cumulative_seconds": 0.0027200510000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 457,
+          "function": "__contains__",
+          "calls": 810,
+          "self_seconds": 0.002375809,
+          "cumulative_seconds": 0.002375809
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 108,
+          "function": "getnnz",
+          "calls": 3984,
+          "self_seconds": 0.002071168,
+          "cumulative_seconds": 0.002071168
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1293,
+          "function": "edges",
+          "calls": 810,
+          "self_seconds": 0.0007588880000000001,
+          "cumulative_seconds": 0.002063932
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1159,
+          "function": "sort_indices",
+          "calls": 186,
+          "self_seconds": 0.000419992,
+          "cumulative_seconds": 0.001929881
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 22,
+          "function": "upcast",
+          "calls": 810,
+          "self_seconds": 0.000950531,
+          "cumulative_seconds": 0.0017360930000000002
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 749,
+          "function": "__getattr__",
+          "calls": 1806,
+          "self_seconds": 0.001655599,
+          "cumulative_seconds": 0.001655599
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 48,
+          "function": "n_robots",
+          "calls": 1624,
+          "self_seconds": 0.001205736,
+          "cumulative_seconds": 0.001630223
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 109,
+          "function": "getdtype",
+          "calls": 810,
+          "self_seconds": 0.0016076830000000002,
+          "cumulative_seconds": 0.0016076830000000002
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 119,
+          "function": "get_shape",
+          "calls": 8472,
+          "self_seconds": 0.0016062700000000001,
+          "cumulative_seconds": 0.0016062700000000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 518,
+          "function": "__getitem__",
+          "calls": 1130,
+          "self_seconds": 0.00100859,
+          "cumulative_seconds": 0.0013277240000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 768,
+          "function": "<lambda>",
+          "calls": 810,
+          "self_seconds": 0.000615325,
+          "cumulative_seconds": 0.0013194200000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 1065,
+          "function": "__init__",
+          "calls": 810,
+          "self_seconds": 0.001112293,
+          "cumulative_seconds": 0.001305044
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 59,
+          "function": "__set__",
+          "calls": 1130,
+          "self_seconds": 0.0012092650000000002,
+          "cumulative_seconds": 0.0012092650000000002
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 93,
+          "function": "to_native",
+          "calls": 1620,
+          "self_seconds": 0.0011950370000000001,
+          "cumulative_seconds": 0.0011950370000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1103,
+          "function": "__set_has_canonical_format",
+          "calls": 996,
+          "self_seconds": 0.000794829,
+          "cumulative_seconds": 0.001061534
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 439,
+          "function": "__iter__",
+          "calls": 810,
+          "self_seconds": 0.00041537700000000003,
+          "cumulative_seconds": 0.0008890300000000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 1943,
+          "function": "bunch_iter",
+          "calls": 4270,
+          "self_seconds": 0.000822385,
+          "cumulative_seconds": 0.000822385
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_sputils.py",
+          "line": 313,
+          "function": "<genexpr>",
+          "calls": 4860,
+          "self_seconds": 0.0007569170000000001,
+          "cumulative_seconds": 0.0007569170000000001
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/upstream/bigmrta_taptc.py",
+          "line": 303,
+          "function": "<dictcomp>",
+          "calls": 810,
+          "self_seconds": 0.0007113390000000001,
+          "cumulative_seconds": 0.0007113390000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1127,
+          "function": "__get_sorted",
+          "calls": 186,
+          "self_seconds": 0.00030913800000000003,
+          "cumulative_seconds": 0.000708611
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/reportviews.py",
+          "line": 768,
+          "function": "<listcomp>",
+          "calls": 810,
+          "self_seconds": 0.0007040950000000001,
+          "cumulative_seconds": 0.0007040950000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_base.py",
+          "line": 1301,
+          "function": "isspmatrix",
+          "calls": 810,
+          "self_seconds": 0.000350291,
+          "cumulative_seconds": 0.000556706
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_csr.py",
+          "line": 231,
+          "function": "_swap",
+          "calls": 4422,
+          "self_seconds": 0.0005538240000000001,
+          "cumulative_seconds": 0.0005538240000000001
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_data.py",
+          "line": 23,
+          "function": "_get_dtype",
+          "calls": 1620,
+          "self_seconds": 0.000528819,
+          "cumulative_seconds": 0.000528819
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 104,
+          "function": "initial_arrays",
+          "calls": 8,
+          "self_seconds": 0.00012728200000000002,
+          "cumulative_seconds": 0.000516843
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/.deps/networkx/classes/graph.py",
+          "line": 37,
+          "function": "__set__",
+          "calls": 1130,
+          "self_seconds": 0.00048115900000000005,
+          "cumulative_seconds": 0.00048115900000000005
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_compressed.py",
+          "line": 1143,
+          "function": "__set_sorted",
+          "calls": 996,
+          "self_seconds": 0.000349633,
+          "cumulative_seconds": 0.000349633
+        },
+        {
+          "file": "/home/hustcsib/.local/lib/python3.8/site-packages/scipy/sparse/_csr.py",
+          "line": 164,
+          "function": "tocsr",
+          "calls": 810,
+          "self_seconds": 0.00014474100000000002,
+          "cumulative_seconds": 0.00014474100000000002
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 44,
+          "function": "n_tasks",
+          "calls": 42,
+          "self_seconds": 2.6861000000000003e-05,
+          "cumulative_seconds": 3.72e-05
+        },
+        {
+          "file": "/home/hustcsib/chiu_code/CapAM-MRTA/big-mrta/baseline.py",
+          "line": 108,
+          "function": "<listcomp>",
+          "calls": 8,
+          "self_seconds": 1.2881000000000001e-05,
+          "cumulative_seconds": 2.6308000000000003e-05
+        }
+      ]
+    }
+  }
+}

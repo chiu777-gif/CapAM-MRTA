@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "solutions_compared": 192,
+  "mismatching_solutions": 0,
+  "max_finish_time_absolute_difference": 0.0,
+  "cpp_results": "/home/hustcsib/chiu_code/CapAM-MRTA/EILS/results/taptc96",
+  "python_results": "/home/hustcsib/chiu_code/CapAM-MRTA/EILS/results/taptc96_python",
+  "cpp_run_created_utc": "2026-10-25T05:33:18.381499+00:00",
+  "python_run_created_utc": "2026-10-25T06:16:27.755117+00:00",
+  "timing_note": "Separate runs on recorded hardware; compare identical selected scenarios, seeds and budgets. Ratios describe these implementations, not intrinsic algorithm complexity.",
+  "checks": [
+    "same input identity and search settings",
+    "identical task/robot routes",
+    "same native completion and cost",
+    "same actual/best iteration counts",
+    "finish-time agreement"
+  ],
+  "timings": {
+    "ils": {
+      "scenarios": 96,
+      "cpp_seconds_per_scenario": 0.05501707657094812,
+      "python_seconds_per_scenario": 1.7713089763492462,
+      "python_seconds_total": 170.04566172952764,
+      "python_over_cpp_time_ratio": 32.195621555155284,
+      "completion_percent": 59.729166666666664,
+      "mean_cost": 108.97876193287213
+    },
+    "eils": {
+      "scenarios": 96,
+      "cpp_seconds_per_scenario": 0.14829668622163203,
+      "python_seconds_per_scenario": 6.127079735400912,
+      "python_seconds_total": 588.1996545984875,
+      "python_over_cpp_time_ratio": 41.316363106346714,
+      "completion_percent": 60.291666666666664,
+      "mean_cost": 108.57614744402214
+    }
+  },
+  "mismatches": []
+}

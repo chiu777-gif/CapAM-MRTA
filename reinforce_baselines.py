@@ -3,9 +3,15 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from scipy.stats import ttest_rel
 import copy
+import csv
+from pathlib import Path
+from problems.mrta.config import MRTAConfig, split_seed
+from problems.mrta.data import collate_mrta
 from train import rollout, get_inner_model
 
 class Baseline(object):
+
+    collate_fn = staticmethod(collate_mrta)
 
     def wrap_dataset(self, dataset):
         return dataset
@@ -41,12 +47,12 @@ class WarmupBaseline(Baseline):
         self.n_epochs = n_epochs
 
     def wrap_dataset(self, dataset):
-        if self.alpha > 0:
+        if self.alpha == 1:
             return self.baseline.wrap_dataset(dataset)
         return self.warmup_baseline.wrap_dataset(dataset)
 
     def unwrap_batch(self, batch):
-        if self.alpha > 0:
+        if self.alpha == 1:
             return self.baseline.unwrap_batch(batch)
         return self.warmup_baseline.unwrap_batch(batch)
 
@@ -59,22 +65,26 @@ class WarmupBaseline(Baseline):
         v, l = self.baseline.eval(x, c)
         vw, lw = self.warmup_baseline.eval(x, c)
         # Return convex combination of baseline and of loss
-        return self.alpha * v + (1 - self.alpha) * vw, self.alpha * l + (1 - self.alpha * lw)
+        return self.alpha * v + (1 - self.alpha) * vw, self.alpha * l + (1 - self.alpha) * lw
 
     def epoch_callback(self, model, epoch):
         # Need to call epoch callback of inner model (also after first epoch if we have not used it)
         self.baseline.epoch_callback(model, epoch)
-        self.alpha = (epoch + 1) / float(self.n_epochs)
+        self.alpha = min(1., (epoch + 1) / float(self.n_epochs))
         if epoch < self.n_epochs:
             print("Set warmup alpha = {}".format(self.alpha))
 
+    def collate_fn(self, batch):
+        return (self.baseline if self.alpha == 1 else self.warmup_baseline).collate_fn(batch)
+
     def state_dict(self):
-        # Checkpointing within warmup stage makes no sense, only save inner baseline
-        return self.baseline.state_dict()
+        return {'baseline': self.baseline.state_dict(),
+                'warmup': self.warmup_baseline.state_dict(), 'alpha': self.alpha}
 
     def load_state_dict(self, state_dict):
-        # Checkpointing within warmup stage makes no sense, only load inner baseline
-        self.baseline.load_state_dict(state_dict)
+        self.baseline.load_state_dict(state_dict['baseline'])
+        self.warmup_baseline.load_state_dict(state_dict['warmup'])
+        self.alpha = state_dict['alpha']
 
 
 class NoBaseline(Baseline):
@@ -96,7 +106,7 @@ class ExponentialBaseline(Baseline):
         if self.v is None:
             v = c.mean()
         else:
-            v = self.beta * self.v + (1. - self.beta) * c.mean()
+            v = self.beta * self.v.to(c.device) + (1. - self.beta) * c.mean()
 
         self.v = v.detach()  # Detach since we never want to backprop
         return self.v, 0  # No loss
@@ -140,7 +150,14 @@ class CriticBaseline(Baseline):
         self.critic.load_state_dict({**self.critic.state_dict(), **critic_state_dict})
 
 
+def collate_baseline(batch):
+    return {'data': collate_mrta([item['data'] for item in batch]),
+            'baseline': torch.stack([item['baseline'] for item in batch])}
+
+
 class RolloutBaseline(Baseline):
+    collate_fn = staticmethod(collate_baseline)
+
 
     def __init__(self, model, problem, opts, epoch=0):
         super(Baseline, self).__init__()
@@ -152,25 +169,10 @@ class RolloutBaseline(Baseline):
 
     def _update_model(self, model, epoch, dataset=None):
         self.model = copy.deepcopy(model)
-        # Always generate baseline dataset when updating model to prevent overfitting to the baseline dataset
-
-        if dataset is not None:
-            if len(dataset) != self.opts.val_size:
-                print("Warning: not using saved baseline dataset since val_size does not match")
-                dataset = None
-            elif (dataset[0] if self.problem.NAME == 'tsp' else dataset[0]['loc']).size(0) != self.opts.graph_size:
-                print("Warning: not using saved baseline dataset since graph_size does not match")
-                dataset = None
-
         if dataset is None:
-            self.dataset = self.problem.make_dataset(
-                size=self.opts.graph_size, num_samples=self.opts.val_size,
-                n_depot=self.opts.n_depot,
-                initial_size = self.opts.initial_size,
-                n_agents=self.opts.n_agents,
-                deadline_min = self.opts.deadline_min,
-                deadline_max=self.opts.deadline_max,
-                distribution=self.opts.data_distribution)
+            self.dataset = self.problem.make_training_dataset(
+                MRTAConfig.from_options(self.opts), self.opts.val_size,
+                split_seed(self.opts.seed, 'baseline', epoch))
         else:
             self.dataset = dataset
         print("Evaluating baseline model on evaluation dataset")
@@ -208,23 +210,25 @@ class RolloutBaseline(Baseline):
 
         print("Epoch {} candidate mean {}, baseline epoch {} mean {}, difference {}".format(
             epoch, candidate_mean, self.epoch, self.mean, candidate_mean - self.mean))
-        users_file = open("convergence.txt", "a")
-        users_file.write(str(self.mean)+',' +'\n')
-        users_file.close()
-        if candidate_mean - self.mean < 0:
-            # Calc p value
+        p_val = None
+        updated = False
+        if candidate_mean < self.mean and len(candidate_vals) > 1:
             t, p = ttest_rel(candidate_vals, self.bl_vals)
-
-            p_val = p / 2  # one-sided
-            assert t < 0, "T-statistic should be negative"
-            print("p-value: {}".format(p_val))
-            if p_val < self.opts.bl_alpha:
-                print('Update baseline')
+            p_val = p / 2
+            if t < 0 and p_val < self.opts.bl_alpha:
                 self._update_model(model, epoch)
+                updated = True
+        path = Path(self.opts.save_dir) / 'convergence.csv'
+        exists = path.exists()
+        with path.open('a', newline='') as handle:
+            writer = csv.writer(handle)
+            if not exists:
+                writer.writerow(['epoch', 'candidate_cost', 'baseline_cost', 'p_value', 'updated'])
+            writer.writerow([epoch, candidate_mean, self.mean, p_val, updated])
 
     def state_dict(self):
         return {
-            'model': self.model,
+            'model': get_inner_model(self.model).state_dict(),
             'dataset': self.dataset,
             'epoch': self.epoch
         }
@@ -232,7 +236,9 @@ class RolloutBaseline(Baseline):
     def load_state_dict(self, state_dict):
         # We make it such that it works whether model was saved as data parallel or not
         load_model = copy.deepcopy(self.model)
-        get_inner_model(load_model).load_state_dict(get_inner_model(state_dict['model']).state_dict())
+        saved_model = state_dict['model']
+        weights = saved_model if isinstance(saved_model, dict) else get_inner_model(saved_model).state_dict()
+        get_inner_model(load_model).load_state_dict(weights)
         self._update_model(load_model, state_dict['epoch'], state_dict['dataset'])
 
 

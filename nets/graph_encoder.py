@@ -215,17 +215,44 @@ class GraphAttentionEncoder(nn.Module):
         )
 
 
+class AMEncoder(nn.Module):
+    """Adapt MRTA dictionaries to the AM self-attention encoder.
+
+    Tasks use the same (x, y, normalized deadline) features as GCAPCN.
+    The separately embedded depot is node 0 and participates in attention.
+    """
+
+    def __init__(self, n_dim=128, n_layers=3, n_heads=8, normalization='batch'):
+        super(AMEncoder, self).__init__()
+        self.init_embed = nn.Linear(3, n_dim)
+        self.init_embed_depot = nn.Linear(2, n_dim)
+        self.encoder = GraphAttentionEncoder(
+            n_heads=n_heads, embed_dim=n_dim, n_layers=n_layers,
+            normalization=normalization, feed_forward_hidden=512)
+
+    def forward(self, data, mask=None):
+        deadline = data['deadline']
+        features = torch.cat((data['loc'],
+                              (deadline / deadline.amax(dim=1, keepdim=True))[:, :, None]), dim=-1)
+        embeddings = torch.cat((self.init_embed_depot(data['depot']),
+                                self.init_embed(features)), dim=1)
+        return self.encoder(embeddings, mask=mask)
+
+
 class GCAPCN(nn.Module):
 
     def __init__(self,
-                 n_layers=2,
+                 n_layers=1,
                  n_dim=128,
                  n_p=3,
                  node_dim=3,
-                 n_K=2
+                 n_K=2,
+                 normalization='batch',
+                 legacy_mode=False
                  ):
         super(GCAPCN, self).__init__()
         self.n_layers = n_layers
+        self.legacy_mode = legacy_mode
         self.n_dim = n_dim
         self.n_p = n_p
         self.n_K = n_K
@@ -238,23 +265,24 @@ class GCAPCN(nn.Module):
         self.W_L_1_G3 = nn.Linear(n_dim * (n_K + 1) * n_p, n_dim)
 
 
-        self.normalization_1 = Normalization(n_dim * n_p)
+        self.normalization_1 = Normalization(n_dim * n_p, normalization)
 
         self.W_F = nn.Linear(n_dim * n_p, n_dim)
 
         self.activ = nn.LeakyReLU()
 
     def forward(self, data, mask=None):
-        X = torch.cat((data['loc'], data['deadline'][:, :, None], data['workload'][:, :, None]), -1)
-        X = torch.cat((X[:, :, 0:2], (X[:, :, 2] / X[:, :, 2].max())[:, :, None]), -1)
-        # X = torch.cat((data['loc'], data['deadline']), -1)
+        deadline = data['deadline']
+        normalizer = deadline.max() if self.legacy_mode else deadline.amax(dim=1, keepdim=True)
+        X = torch.cat((data['loc'], (deadline / normalizer)[:, :, None]), dim=-1)
         X_loc = X
         distance_matrix = (((X_loc[:, :, None] - X_loc[:, None]) ** 2).sum(-1)) ** .5
         num_samples, num_locations, _ = X.size()
         A = ((1 / distance_matrix) * (torch.eye(num_locations, device=distance_matrix.device).expand(
             (num_samples, num_locations, num_locations)) - 1).to(torch.bool).to(torch.float))
-        A[A != A] = 0
-        A = A / A.max()
+        A = torch.where(torch.isfinite(A), A, torch.zeros_like(A))
+        normalizer = A.max() if self.legacy_mode else A.amax(dim=(1, 2), keepdim=True)
+        A = A / normalizer.clamp_min(torch.finfo(A.dtype).eps)
         D = torch.mul(torch.eye(num_locations, device=distance_matrix.device).expand((num_samples, num_locations, num_locations)),
                       (A.sum(-1) - 1)[:, None].expand((num_samples, num_locations, num_locations)))
 

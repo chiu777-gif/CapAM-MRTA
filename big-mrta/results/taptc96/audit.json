@@ -1,0 +1,47 @@
+{
+  "checked_at_utc": "2026-10-25T05:34:10.650785+00:00",
+  "protocols": {
+    "upstream_taptc": {
+      "scenarios_verified": 96,
+      "robot_count_histogram": {
+        "2": 24,
+        "3": 24,
+        "5": 24,
+        "7": 24
+      },
+      "completed_tasks": 5389,
+      "unassigned_tasks": 4172,
+      "mean_cost": null,
+      "dataset_sha256": "4745b8a63bb2258ee3fc654e0d8c2c253a833fae2a823b285c50651149544c21",
+      "checks": [
+        "source and dataset hashes",
+        "scenario identities and active robot counts",
+        "unique task assignments and recorded finish times",
+        "deadline completion and cost",
+        "relaxation flags and policy/full inference timing",
+        "overall aggregates"
+      ]
+    },
+    "capam_full_visit": {
+      "scenarios_verified": 96,
+      "robot_count_histogram": {
+        "2": 24,
+        "3": 24,
+        "5": 24,
+        "7": 24
+      },
+      "completed_tasks": 5392,
+      "unassigned_tasks": 0,
+      "mean_cost": 116.19960580766201,
+      "dataset_sha256": "4745b8a63bb2258ee3fc654e0d8c2c253a833fae2a823b285c50651149544c21",
+      "checks": [
+        "source and dataset hashes",
+        "scenario identities and active robot counts",
+        "unique task assignments and recorded finish times",
+        "deadline completion and cost",
+        "relaxation flags and policy/full inference timing",
+        "overall aggregates"
+      ]
+    }
+  }
+}

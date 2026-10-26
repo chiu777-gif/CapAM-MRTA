@@ -1,0 +1,4 @@
+{
+  "status": "interrupted",
+  "reason": "Distance rounding parity check: math.hypot changed a near-equal insertion ordering. Replaced with numpy.hypot; this partial run is not a final benchmark."
+}

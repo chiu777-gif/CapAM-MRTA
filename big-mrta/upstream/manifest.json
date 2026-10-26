@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/adamslab-ub/BiG-MRTA",
+  "commit": "e49cd948653b15a70348d85a65b1b42c847f8b5b",
+  "files": {
+    "bigmrta_taptc.py": {
+      "url": "https://raw.githubusercontent.com/adamslab-ub/BiG-MRTA/e49cd948653b15a70348d85a65b1b42c847f8b5b/bigmrta_taptc.py",
+      "sha256": "66a6ead6746829e150bb5bdc5669b52ec7e328285b7624a109d7d56be6dbc2f3"
+    },
+    "main_bigmrta_TAPTC.py": {
+      "url": "https://raw.githubusercontent.com/adamslab-ub/BiG-MRTA/e49cd948653b15a70348d85a65b1b42c847f8b5b/main_bigmrta_TAPTC.py",
+      "sha256": "52ece4379dd2ccf603cd2ba686ae0502fb522b3c1255c0c1bc9aea06dd4b56ca"
+    },
+    "LICENSE": {
+      "url": "https://raw.githubusercontent.com/adamslab-ub/BiG-MRTA/e49cd948653b15a70348d85a65b1b42c847f8b5b/LICENSE",
+      "sha256": "b567a90403f772e5472b2c14d71caf3314e2cfad7ad9972cfd2af47c5f816a78"
+    },
+    "README.md": {
+      "url": "https://raw.githubusercontent.com/adamslab-ub/BiG-MRTA/e49cd948653b15a70348d85a65b1b42c847f8b5b/README.md",
+      "sha256": "49ee232f36573ba0beb172363d2a0cced1058d1c22b0b42ae0bac78339e3ce0a"
+    }
+  }
+}
