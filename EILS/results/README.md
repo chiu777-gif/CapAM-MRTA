@@ -9,8 +9,9 @@
 | `taptc96_python` | Python/NumPy | 96 | group1 用 tight，group2 用 slack | 192 | [报告](taptc96_python/REPORT.md)、[完整统计](taptc96_python/summary.json) |
 | `taptc96` | C++ | 96 | 每场景运行 tight、slack 两套参数 | 384 | [报告](taptc96/REPORT.md)、[完整统计](taptc96/summary.json) |
 | `n100_train_matched_1000` | C++ | 1000 | 每场景运行 tight、slack 两套参数 | 4000 | [报告](n100_train_matched_1000/REPORT.md)、[完整统计](n100_train_matched_1000/summary.json) |
+| `n100_obstacles_visibility_python_run01` | Python/NumPy | 100 | EILS，tight/slack，可见图 + Dijkstra 缓存距离 | 200 | [报告](n100_obstacles_visibility_python_run01/REPORT.md)、[完整统计](n100_obstacles_visibility_python_run01/summary.json) |
 
-正式实验均运行 ILS 和 EILS，使用完整原文参数、连续服务时间、每场景/配置重复一次。算法优化按时完成数，cost 使用统一的剩余任务补全规则。
+前三项实验均运行 ILS 和 EILS，障碍数据实验只运行 EILS。正式实验均使用完整原文参数、连续服务时间、每场景/配置重复一次。算法优化按时完成数，cost 使用统一的剩余任务补全规则。
 
 目前**没有 Python 后端的 1000 场景全量结果**。不要把 `n100_train_matched_1000` 当成 Python 实验，也不要因当前默认后端改变而重新解释历史耗时。
 
@@ -40,6 +41,19 @@ tight/slack 是两套参数，数据没有 TAPTC 的 group1/group2 分组。每�
 
 机器人数量分组见 [原始报告](n100_train_matched_1000/REPORT.md)。正式实验均保留逐场景路线和复算记录。
 
+## 障碍数据 100 场景
+
+输入为 `z_test_path/data/n100_obstacles_example.pkl`。使用可见图 + Dijkstra，`visibility_epsilon=1e-6`，Python EILS 在每个场景分别运行 tight/slack 两套完整参数；4 个进程并行推理，4 个进程提前读取路径缓存。
+
+| 参数组 | 按时完成率 | 平均 cost | 平均推理秒/场景 | 累计推理秒数 |
+|---|---:|---:|---:|---:|
+| tight | 84.590% | 72.721299 | 14.700329 | 1470.032900 |
+| slack | 83.160% | 77.458222 | 10.777549 | 1077.754869 |
+
+100/100 个场景命中已有共享缓存，实际规划计算时间为 **0 秒**；提前规划阶段墙钟时间为 **1.622656 秒**，含缓存读取及规划进程开销。两套参数共享这一次预处理。后续评估循环墙钟时间约 **648.4 秒**；推理列是并发条件下逐次求解的实际延迟，累计值不是整批墙钟时间。缓存读写与路径规划均排除在推理时间之外。
+
+结果见[报告](n100_obstacles_visibility_python_run01/REPORT.md)、[逐场景规划计时](n100_obstacles_visibility_python_run01/path_planning.csv)；距离表快照与路线均保存在同目录，可使用 `verify_results.py` 独立复算。
+
 ## 调试与中断归档
 
 这些目录用于实现检查，不应放进正式算法对比表。
@@ -49,6 +63,7 @@ tight/slack 是两套参数，数据没有 TAPTC 的 group1/group2 分组。每�
 | `pilot` | C++ 小样本试跑 | 仅前 5 个随机场景，共 20 个解 |
 | `taptc96_pilot` | C++ 入口调试 | 仅前 1 个 TAPTC 场景，并使用 `--limit 1` |
 | `taptc96_python_interrupted_hypot_check` | 中断的 Python 诊断 | 距离舍入检查后已中断，无完整正式汇总，见 [STATUS.json](taptc96_python_interrupted_hypot_check/STATUS.json) |
+| `n100_obstacles_visibility_cold_smoke` | Python 障碍数据冷缓存试跑 | 仅前 2 个场景，EILS-tight，`--limit 10`；用于验证实际规划计时与结果复算 |
 
 修正后的完整 Python 实验是 `taptc96_python`。中断归档不代表当前实现的正式指标。
 

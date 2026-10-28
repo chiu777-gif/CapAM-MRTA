@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "solutions_replayed": 2,
+  "groups_verified": 2,
+  "dataset_sha256": "758c7e3a3592a0b1ef59ba6d64d265dc9ce403fbdb621faf0601e38f24a3f043",
+  "matched_models_verified": 0,
+  "deadline_groups_verified": 0,
+  "checks": [
+    "dataset identity",
+    "all algorithm/profile/scenario/repeat combinations present exactly once",
+    "all tasks assigned once to active robots",
+    "full route finish times",
+    "native completion unchanged",
+    "saved cost and completion",
+    "seed derivation",
+    "iteration/timing validity",
+    "group and overall summaries",
+    "saved path distance snapshot identity",
+    "cached-distance route replay",
+    "navigation cache keys",
+    "path planning timing and summaries"
+  ]
+}

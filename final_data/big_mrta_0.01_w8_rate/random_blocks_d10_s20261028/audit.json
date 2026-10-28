@@ -1,0 +1,29 @@
+{
+  "checked_at_utc": "2026-10-28T10:59:11.803498+00:00",
+  "protocols": {
+    "capam_full_visit": {
+      "objective": "completion",
+      "scenarios_verified": 300,
+      "robot_count_histogram": {
+        "2": 51,
+        "3": 54,
+        "4": 48,
+        "5": 53,
+        "6": 49,
+        "7": 45
+      },
+      "completed_tasks": 21151,
+      "unassigned_tasks": 0,
+      "mean_cost": 122.34910889307658,
+      "dataset_sha256": "724b1b3708bee7bab886c0a527c38b840dcbc83afc3cba724f263ae9fd7c6db1",
+      "checks": [
+        "source and dataset hashes",
+        "scenario identities and active robot counts",
+        "unique task assignments and recorded finish times",
+        "deadline completion and cost",
+        "relaxation flags and policy/full inference timing",
+        "overall aggregates"
+      ]
+    }
+  }
+}

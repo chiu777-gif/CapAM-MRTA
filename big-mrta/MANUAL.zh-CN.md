@@ -17,7 +17,7 @@
 
 ## 1. 用途与目录结构
 
-BiG-MRTA 是无需训练的图匹配方法。评测入口直接读取固定场景，用作者的任务选择函数求解；不接受 CapAM 的 `--model` 或检查点参数。
+BiG-MRTA 是无需训练的图匹配方法。评测入口直接读取固定场景，默认用作者的任务选择函数求解，也支持适配的单步 cost 匹配；不接受 CapAM 的 `--model` 或检查点参数。
 
 ```text
 big-mrta/
@@ -140,7 +140,7 @@ PYTHON=/home/hustcsib/miniconda3/envs/mrta_c/bin/python
 
 只跑适配版时改成 `--protocol capam_full_visit`，同时使用对应的新输出目录。
 
-`audit_results.py` 和 `plot_results.py` 当前都要求结果根目录下已有**两个协议目录**。只有一个协议的输出时，直接看该协议的 `summary.json`、`scenarios.csv` 和根目录的 `report.md`。需要核验或绘图时，在同一根目录运行另一个协议，保持数据、offset、样本数、线程数和预热设置相同。
+`audit_results.py` 自动核验结果根目录中已存在的协议，支持只有一个协议。`plot_results.py` 的两协议比较图仍要求**两个协议目录**，而 cost 目标使用 `compare_objectives.py` 输出目标对比表。两协议绘图时保持数据、offset、样本数、线程数、预热、规划参数和 objective 一致。
 
 ### 4.5 与单线程 ILS/EILS 比较
 
@@ -153,7 +153,50 @@ PYTHON=/home/hustcsib/miniconda3/envs/mrta_c/bin/python
 
 程序默认线程数是 4，上述比较命令显式改成 1。线程数只是比较条件之一：本地 ILS/EILS 为优化的 C++ 实现，BiG 保留 Python/NetworkX 实现，适配协议也需注明。已有的[单线程补测](results/taptc96/timing_analysis.md)与历史 4 线程主结果是不同批次的测量。
 
-### 4.6 已有文件与重新运行
+### 4.6 障碍数据与路径缓存
+
+```bash
+"$PYTHON" big-mrta/evaluate.py \
+  --data z_test_path/data/n100_obstacles_example.pkl \
+  --protocol both --path_planner visibility_dijkstra \
+  --visibility_epsilon 1e-6 --cache_dir z_test_path/cache \
+  --path_workers 4 \
+  --cpu_threads 1 --warmup_scenarios 1 \
+  --output_dir big-mrta/results/n100_obstacles_visibility_run02
+```
+
+`--path_workers` 设置路径准备阶段的进程数，默认 1；例如 `--path_workers 4` 最多使用 4 个独立进程按场景并行规划或读取缓存。实际数量为请求值与场景数的较小值，无障碍数据为 0；必须传正整数。规划子进程的数值库线程数为 1，避免每个进程再开多条数值线程。`--cpu_threads` 仍控制主进程推理的数值库线程数，推理场景仍串行。
+
+入口先为所有选中场景执行可见图 + Dijkstra，之后预热和求解只查内存距离表。磁盘缓存直接复用 `z_test_path.path_planner`，保存距离及折线路径；同一数据、地图、尺度和 epsilon 可跨方法复用。命中缓存时不重新建图或搜索；修改地图、坐标、有效机器人、规划器源码或 epsilon 会改变缓存键。`--rebuild_cache` 强制重新计算。
+
+可见图使用向外偏移的障碍矩形角点，边权为无碰撞直线的欧氏长度，Dijkstra 给出此有限图上的最短路径。默认 epsilon 为归一化地图中的 `1e-6`；与 `0.01` 实验比较时显式改为 `--visibility_epsilon 0.01`。障碍数据不允许使用 `euclidean`，无障碍数据也不允许使用 `visibility_dijkstra`，以免静默忽略地图。
+
+策略时间矩阵、策略距离矩阵、仿真移动时间和独立路线重放全部改查同一份距离。仍保留作者最后一个机器人的距离矩阵用于共享激励/航程的现有行为；每个机器人的移动时间矩阵使用各自起点距离。上游源码文件不修改。适配版使用 `PathState` / `PathMRTA` 重放，任务从 1 编号，机器人起点在路径表中单独编号，传入策略时映射为每个机器人的本地节点 0。
+
+规划在两个协议之前执行一次，其统计同时写入各协议结果，不能跨协议累加。热缓存的规划耗时为 0，缓存加载单独计时。路径准备阶段墙钟包含适配、缓存读写等；纯推理耗时从求解开始，排除路径准备、预热及额外重放。多进程在推理前全部退出；`path_planning_seconds_total` 是各场景工作进程耗时之和，并非并行墙钟时间。`path_preprocessing_wall_seconds` 包含整个路径阶段的进程启动、退出、适配和缓存 I/O。
+
+### 4.7 切换 cost / 完成率目标
+
+配置项为 `--objective completion|cost`，默认 `completion`。它选择策略，不改变评价公式。
+
+- `completion` 保留原作者策略：优先使用预计按时完成的边，最大化 `finishRange * exp(-finishTime/TotalTime)`；全任务协议只在空分配时放宽 deadline。它是完成率启发式，并非直接求全局最大完成率。
+- `cost` 使用适配的最小代价 Hungarian 匹配。每个机器人按自己的可用时间、当前位置、缓存路径距离及服务时间计算各任务的预计完成时刻；按时惩罚为 0，逾期惩罚为 `finish/deadline`。全部剩余任务可匹配，包括已经逾期的任务。不使用原激励权重或 deadline 可行边过滤。代价相等时使用 SciPy 固定行/任务顺序；任务少于机器人且当前机器人未匹配时，选择当前机器人的最小代价任务，保证每轮推进。
+
+两种目标均在 `capam_full_visit` 下访问全部任务并接受公共状态重放。cost 模式没有额外局部搜索或后续任务成本预测，因此最小化本轮新增惩罚不保证最终总 cost 更小。零惩罚平局与高惩罚任务被推迟都可能降低最终效果；报告实测差异，不将配置名称当作效果保证。
+
+单独运行时给 `evaluate.py` 添加 `--objective cost --protocol capam_full_visit`，使用新输出目录。cost 模式省略 `--protocol` 时自动选全任务协议；显式指定 `both` 或 `upstream_taptc` 会报错。completion 模式省略协议仍运行 `both`，保持历史行为。
+
+```bash
+"$PYTHON" big-mrta/compare_objectives.py \
+  --data z_test_path/data/n100_obstacles_example.pkl \
+  --cpu_threads 1 --warmup_scenarios 1 --visibility_epsilon 1e-6 \
+  --path_workers 4 \
+  --output_dir big-mrta/results/n100_obstacles_objectives_run02
+```
+
+比较脚本按 completion、cost 顺序运行两个独立进程，每个进程先读取相同路径缓存、预热、逐场景推理，再运行路线核验。输出根目录的 `REPORT.md` / `comparison.json` 统计均值和差值；`paired_scenarios.csv` 保存逐场景 cost、完成率及差值。两个子目录分别保留 `report.md`、`audit.json` 和 `capam_full_visit/` 下的四种标准结果文件。默认数据为上述障碍数据，线程数默认为 1，其余可传 `--path_workers`、`--offset`、`--num_samples`、`--cache_dir`、`--overwrite`；比较器支持普通无障碍数据，规划器按数据自动选择。
+
+### 4.8 已有文件与重新运行
 
 输出目录不存在时，程序自动创建；目录中已有当前协议的评测文件时，默认报 `Already exists`。
 
@@ -168,13 +211,19 @@ PYTHON=/home/hustcsib/miniconda3/envs/mrta_c/bin/python
 | 参数 | 默认值 | 作用 |
 |---|---|---|
 | `--data PATH` | `z_test/data/n100_train_matched_1000_seed20261024.pkl` | 一个数据文件或 TAPTC 根目录 |
-| `--protocol` | `both` | `both`、`upstream_taptc` 或 `capam_full_visit` |
+| `--protocol` | completion 时 `both`；cost 时 `capam_full_visit` | `both`、`upstream_taptc` 或 `capam_full_visit` |
+| `--objective` | `completion` | `completion` 保留完成率启发式，`cost` 最小化本轮新增逾期惩罚，要求全任务协议 |
 | `--output_dir PATH` | `big-mrta/results/n100_train_matched_1000_seed20261024` | 输出根目录；建议每次显式指定 |
 | `--cpu_threads N` | `4` | PyTorch / BLAS 线程设置，正整数；不是并行场景数 |
 | `--warmup_scenarios N` | `1` | 对首场景完整预热的次数，每个协议分别执行，不计时 |
 | `--offset N` | `0` | 跳过固定读取顺序中的前 N 个场景 |
 | `--num_samples N` | 未指定，评测剩余全部 | offset 后最多评测 N 个场景 |
 | `--overwrite` | 关闭 | 允许覆盖当前协议的已有评测输出 |
+| `--path_planner` | `auto` | 障碍数据自动选 `visibility_dijkstra`；普通数据选 `euclidean` |
+| `--visibility_epsilon` | `1e-6` | 可见图角点外偏移量，归一化地图单位 |
+| `--cache_dir` | `z_test_path/cache` | 与 `z_test_path` 共用的路径缓存目录 |
+| `--path_workers N` | `1` | 路径预计算 / 缓存加载进程数，最多为场景数；不改变推理并行度 |
+| `--rebuild_cache` | 关闭 | 强制重新规划并更新当前参数对应的缓存 |
 | `--help` | — | 显示实际支持的参数 |
 
 当前 CLI 没有 `--model`、`--device`、`--eval_batch_size`、`--robot_counts` 或 `--seed` 参数。机器人数量来自输入文件；进程自动固定 `PYTHONHASHSEED=0`，稳定作者匹配辅助函数中集合转列表的顺序。这个固定值不是重新生成数据的随机种子。
@@ -233,6 +282,7 @@ TAPTC 策略矩阵直接读取原始物理文本，速度为 1。这样能避免
 | 字段 | 含义 |
 |---|---|
 | `protocol` | 当前文件属于哪个协议 |
+| `objective` / `objective_definition` | 当前优化目标及实际匹配规则；历史文件缺省为 completion |
 | `scenarios` / `total_tasks` | 场景数 / 总任务数 |
 | `completed_tasks` / `completion_percent` | 实际按时完成任务数 / 百分数 |
 | `assigned_tasks` / `unassigned_tasks` | 已分配 / 未分配任务数 |
@@ -243,6 +293,13 @@ TAPTC 策略矩阵直接读取原始物理文本，速度为 1。这样能避免
 | `inference_seconds_per_scenario` | 平均每场景完整求解时间，秒 |
 | `inference_milliseconds_p50` / `inference_milliseconds_p95` | 场景延迟的中位数 / 95 分位，毫秒 |
 | `policy_seconds_per_scenario` | 作者 `getNextTask` 调用累计耗时的每场景平均值，属于完整时间的子集 |
+| `path_planner` / `visibility_epsilon` | 距离来源及可见图角点偏移参数 |
+| `path_planning_seconds_total` / `path_planning_seconds_per_scenario` | 各场景实际规划耗时之和 / 每场景均值，秒；缓存命中为 0，并行时不是墙钟时间 |
+| `path_planning_cpu_seconds_total` | 实际规划的进程 CPU 时间，秒 |
+| `cache_hits` / `cache_misses` | 命中 / 新计算的场景数 |
+| `cache_read_seconds_total` / `cache_write_seconds_total` | 缓存读 / 写总耗时，秒 |
+| `path_preprocessing_wall_seconds` | 两协议前共享路径准备阶段的墙钟时间，含子进程启动退出、适配与缓存读写 |
+| `path_workers` / `path_workers_requested` | 实际 / 请求的规划进程数；无障碍数据实际为 0 |
 | `evaluation_wall_seconds` | 评测循环总墙钟时间，还包括整理、验证、输出等开销 |
 | `relaxed_decisions` | 原策略空分配后，放宽 deadline 重试的决策数量 |
 | `by_robot_count` | 按保存的机器人数量分组的同类指标 |
@@ -287,7 +344,7 @@ cost = Σ_{finish_i > deadline_i} finish_i / deadline_i
 平均每场景毫秒数 = inference_seconds_per_scenario * 1000
 ```
 
-计时包含矩阵/状态构造、全部建图与匹配、重试、仿真状态更新；排除文件加载、输入转换、预热、额外重放核验、结果写入。CPU 场景串行处理，batch size=1，因此这里是单场景完整求解延迟。
+计时包含矩阵/状态构造、全部建图与匹配、重试、仿真状态更新；排除文件加载、输入转换、路径预计算和缓存读写、预热、额外重放核验、结果写入。CPU 场景串行处理，batch size=1，因此这里是单场景完整求解延迟。
 
 比较时记录数据集、协议、线程数、预热和实现语言。历史 4 线程主结果、单线程补测、cProfile 剖析是不同记录；剖析会增加程序开销，其秒数不替代普通推理时间。现有 CapAM batch=32 的每场景均摊时间也不等同这里的单场景延迟。
 
@@ -301,16 +358,16 @@ cost = Σ_{finish_i > deadline_i} finish_i / deadline_i
 PYTHONHASHSEED=0 "$PYTHON" -m unittest discover -s big-mrta -p 'test_*.py' -v
 ```
 
-验证包括：作者原始驱动对照、原始 TAPTC 文本精度、单位与有效机器人、无可行任务、任务少于机器人、deadline 相等、源码和输入哈希。
+验证包括：作者原始驱动对照、原始 TAPTC 文本精度、单位与有效机器人、无可行任务、任务少于机器人、deadline 相等、源码和输入哈希，以及绕障距离、冷/热缓存一致性、跨方法缓存复用和规划参数变化后的缓存失效。
 
-适配版评测时还会对每个结果执行公共 `MRTA.replay`，核对完成时间、cost 和完成数，并检查独立物理时间计算。`audit_results.py` 重新检查导出路线、指标、汇总及数据哈希；它不会重新测量推理时间。
+适配版评测时还会对每个结果执行公共 `MRTA.replay`（障碍数据使用 `PathMRTA.replay`），核对完成时间、cost 和完成数，并检查独立物理时间计算。`audit_results.py` 重新检查导出路线、指标、汇总及数据哈希；它不会重新测量推理时间。
 
 | 现象 | 原因及处理 |
 |---|---|
 | `python: command not found` | 使用本手册的解释器绝对路径，或先设置 `PYTHON` 变量 |
 | `ModuleNotFoundError: networkx` / `threadpoolctl` | 用同一解释器将 `requirements.txt` 安装到 `big-mrta/.deps` |
 | `Already exists` | 更换输出目录；确实需要替换时使用 `--overwrite` |
-| 审计或绘图找不到某协议的 `summary.json` | 当前根目录只有单协议输出，或 `--results` 错传成子目录；先补齐另一协议 |
+| 绘图找不到某协议的 `summary.json` | 当前根目录只有单协议输出，或 `--results` 错传成子目录；两协议绘图需补齐另一协议，审计支持单协议 |
 | 绘图报 `Incompatible protocol summaries` | 两协议的输入、offset、样本数、机器人分布或线程不一致，使用一致参数重新评测 |
 | 原版 `mean_cost` 为 `null` | 存在未分配任务；这是明确的统计规则，不是漏算成零 |
 | TAPTC cost 比训练同分布数据小 | 先看完成率、逾期数量和相对超时程度，并注明适配协议 |

@@ -1,6 +1,6 @@
 # ILS / EILS 中文使用说明书
 
-本说明书以当前代码和已保存实验为准。日常评估使用 `evaluate.py`，完成后用 `verify_results.py` 复算。默认后端为 Python/NumPy，所有结果保存在 `EILS` 内。
+本说明书以当前代码和已保存实验为准。日常评估使用 `evaluate.py`，完成后用 `verify_results.py` 复算。默认后端为 Python/NumPy，实验结果保存在 `EILS` 内；障碍数据的导航缓存默认与 `z_test_path/cache` 共享。
 
 ## 1. 先区分概念和参数
 
@@ -31,12 +31,12 @@
 
 ## 2. 环境与执行位置
 
-以下命令均在**项目根目录、同一终端**执行，并沿用 `EILS_PY`。这是本机已安装项目依赖的环境；换机器时将变量改为自己的 Python 路径。
+以下命令均在**项目根目录、同一终端**执行。先激活已安装项目依赖的 Conda 环境 `mrta_c`，后续使用该环境中的 `python`；新开终端后需重新激活环境。
 
 ```bash
 cd /home/hustcsib/chiu_code/CapAM-MRTA
-EILS_PY=/home/hustcsib/miniconda3/envs/mrta_c/bin/python
-"$EILS_PY" -c 'import numpy, torch; print(numpy.__version__, torch.__version__)'
+conda activate mrta_c
+python -c 'import numpy, torch; print(numpy.__version__, torch.__version__)'
 ```
 
 | 后端 | 运行依赖 | 说明 |
@@ -44,7 +44,7 @@ EILS_PY=/home/hustcsib/miniconda3/envs/mrta_c/bin/python
 | `python`，默认 | Python、NumPy、PyTorch | 搜索在 `python_solver.py`；无需编译器，不调用 C++ 求解库，无需 Numba/Cython |
 | `cpp` | 上述依赖，以及支持 C++17 的 `g++` | 首次运行自动将 `solver.cpp` 编译到 `build/libeils.so` |
 
-PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场景串行求解；没有 `--device`、`--cpu_threads` 或 `--eval_batch_size` 选项，也不加载模型检查点。
+PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，默认串行求解；可通过 `--workers` 使用多个进程并行处理不同场景，每个进程内仍逐场景求解。没有 `--device`、`--cpu_threads` 或 `--eval_batch_size` 选项，也不加载模型检查点。
 
 ## 3. 已有结果应该看哪个
 
@@ -64,7 +64,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 下面检查前两个 TAPTC 场景，使用小搜索预算，不作为正式性能结果。
 
 ```bash
-"$EILS_PY" EILS/evaluate.py \
+python EILS/evaluate.py \
   --backend python \
   --data data/mrta_gini \
   --match_taptc_groups \
@@ -73,7 +73,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
   --seed 20261025 \
   --output_dir EILS/results/manual_smoke_python_run01
 
-"$EILS_PY" EILS/verify_results.py EILS/results/manual_smoke_python_run01
+python EILS/verify_results.py EILS/results/manual_smoke_python_run01
 ```
 
 `--limit 10` 对 ILS 表示连续 10 轮无改进上限，对 EILS 表示 10 次构造上限。正式实验应省略该选项，恢复第 1 节的原文参数。
@@ -85,7 +85,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 ### 推荐：根据原始分组选择参数
 
 ```bash
-"$EILS_PY" EILS/evaluate.py \
+python EILS/evaluate.py \
   --backend python \
   --data data/mrta_gini \
   --match_taptc_groups \
@@ -95,7 +95,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
   --seed 20261025 \
   --output_dir EILS/results/taptc96_python_run01
 
-"$EILS_PY" EILS/verify_results.py EILS/results/taptc96_python_run01
+python EILS/verify_results.py EILS/results/taptc96_python_run01
 ```
 
 输入为 `group1`、`group2` 的 96 个任务文本，以及对应的 12 个 `agent` 文本。每场景 100 个任务，机器人数量 2、3、5、7 各有 24 个场景。目录中的 `n_200`、演示文件和旧转换 pickle 不参与评估。
@@ -114,7 +114,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 ### 可选：在全部 96 场景上比较两套固定参数
 
 ```bash
-"$EILS_PY" EILS/evaluate.py \
+python EILS/evaluate.py \
   --backend python \
   --data data/mrta_gini \
   --algorithms ils eils \
@@ -130,7 +130,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 ## 6. 训练分布匹配的 1000 场景
 
 ```bash
-"$EILS_PY" EILS/evaluate.py \
+python EILS/evaluate.py \
   --backend python \
   --data z_test/data/n100_train_matched_1000_seed20261024.pkl \
   --algorithms ils eils \
@@ -139,7 +139,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
   --seed 20261025 \
   --output_dir EILS/results/n100_train_matched_1000_python_run01
 
-"$EILS_PY" EILS/verify_results.py EILS/results/n100_train_matched_1000_python_run01
+python EILS/verify_results.py EILS/results/n100_train_matched_1000_python_run01
 ```
 
 文件有 1000 个场景，每场景 100 个任务，机器人数量按保存值为 2–7，各数量的样本数不同。评估不会改机器人数量或重新生成场景。
@@ -150,6 +150,61 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 
 需要 C++ 后端时，将 `--backend python` 改成 `--backend cpp`，并另设目录，例如 `EILS/results/n100_train_matched_1000_cpp_run01`。
 
+### 多进程并行加速
+
+同一终端先执行 `conda activate mrta_c`，再使用下面的 8 进程命令。`--workers` 对 Python 和 C++ 后端都有效，默认值为 `1`。场景之间相互独立，并行时保留原来的输入、随机种子、搜索预算和结果校验。
+
+```bash
+python EILS/evaluate.py \
+  --backend python \
+  --data z_test/data/n100_train_matched_1000_seed20261024.pkl \
+  --algorithms ils eils \
+  --profiles tight slack \
+  --service_time continuous \
+  --seed 20261025 \
+  --workers 8 \
+  --progress_every 1 \
+  --output_dir EILS/results/n100_train_matched_1000_python_w8_run01
+
+python EILS/verify_results.py EILS/results/n100_train_matched_1000_python_w8_run01
+```
+
+先用 `8` 个进程观察整批耗时和内存占用，再按机器可用 CPU 和内存调整；实际加速比受资源竞争和场景难度差异影响。每个进程会加载 Python/NumPy/PyTorch，因此进程数增加也会增加内存占用。实际进程数不会超过 `场景数 × repeats`。
+
+启动时会立即显示数据路径，随后显示场景数、求解次数和进程数；第一个场景完成后显示进度，之后按 `--progress_every` 指定的场景间隔输出。每个场景的全部配置完成后都会刷新 CSV 和路线文件。并行时场景按完成顺序写入，读取时按 `scenario_index`、`repeat`、算法和参数组识别记录。
+
+已经运行的串行进程不会自动切换为并行。要切换，在原终端按 `Ctrl+C` 结束当前运行，再使用一个新的输出目录启动；旧目录保留部分结果，当前不支持断点续跑。
+
+并行缩短的是**整批评估的墙钟时间**。单次 `inference_seconds` 仍测量一次完整求解的实际延迟，并行时可能受资源竞争影响；`inference_seconds_total` 是各次延迟之和，可以大于 `evaluation_wall_seconds`。比较单进程推理延迟时使用 `--workers 1`，详见第 10 节。
+
+### 障碍数据：可见图 + Dijkstra
+
+`z_test_path/data/n100_obstacles_example.pkl` 有 100 个场景，每个场景 100 个任务。下面只运行 EILS，每个场景分别使用 tight、slack 两套完整搜索预算，共 200 次求解：
+
+```bash
+python EILS/evaluate.py \
+  --backend python \
+  --data z_test_path/data/n100_obstacles_example.pkl \
+  --algorithms eils --profiles tight slack \
+  --path_planner visibility_dijkstra \
+  --visibility_epsilon 1e-6 \
+  --cache_dir z_test_path/cache \
+  --path_workers 4 --workers 4 \
+  --output_dir EILS/results/n100_obstacles_visibility_python_run02
+
+python EILS/verify_results.py EILS/results/n100_obstacles_visibility_python_run02
+```
+
+`--path_planner auto` 是默认值：检测到 pickle 中的 `obstacle_map` 就使用可见图 + Dijkstra；普通无障碍数据继续使用欧氏距离。障碍数据不能指定 `euclidean`。Python 和 C++ 后端都支持缓存距离；只运行一套参数可用 `--profiles tight`。
+
+程序先为所选场景预计算任务之间、有效机器人起点到任务的避障距离，再开始任何搜索。插入可行性、扰动后的重建、剩余任务补全，以及最终完成时间、cost 和完成率复算，全部使用这两张距离表。移动时间为 `缓存距离 / max_speed`，服务时间仍按所选模式计算；保留数据保存的坐标、有效机器人数量和归一化单位。
+
+路径规划直接复用 `z_test_path/path_planner.py` 和 `visibility_planner.py`：使用向外偏移的障碍角点建可见图，以欧氏边长加权，再用 Dijkstra 求图上的最短路径。障碍边界也视为碰撞。`visibility_epsilon` 默认 `1e-6`，单位为内部 `[0,1]²` 地图；与 CapAM 等结果比较时，需要使用相同的 epsilon，例如现有 `capam_path_100_d_1` 使用 `0.005`。
+
+同一个场景的规划只执行一次，供所有算法、参数组和 repeats 共享。缓存按地图、坐标、有效机器人数量、地图尺度、规划算法/epsilon 和源码指纹区分，兼容 `z_test_path` 已有的同配置缓存。再次运行须换一个空输出目录，但可继续使用同一个 `--cache_dir`；命中缓存时无需建图或搜索。需要测量重新规划的耗时时增加 `--rebuild_cache`；这会重新计算并更新对应缓存。
+
+`--path_workers` 控制提前规划阶段的进程数；`--workers` 控制后续 ILS/EILS 搜索进程数，两个阶段依次运行。结果看 `REPORT.md` 或 `summary.json`：每套参数的 `models.eils_tight` / `models.eils_slack` 包含平均 cost、完成率、推理总时间及每场景推理时间；路径规划累计时间放在顶层 `path_planning_seconds_total`，供各配置共享，不重复相加。规划命中缓存时该值为 0；缓存读取和规划阶段墙钟时间另有记录。
+
 ## 7. 全部命令行选项
 
 | 选项 | 默认值 | 作用 |
@@ -159,6 +214,7 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 | `--output_dir` | `EILS/results/n100_train_matched_1000_<backend>` | 须为空且在 EILS 内 |
 | `--algorithms` | `ils eils` | 一种或两种算法 |
 | `--profiles` | `tight slack` | 一套或两套参数 |
+| `--objective` | `completion` | `completion` 最大化按时完成数；`cost` 最小化每轮候选补全全部任务后的 cost，Python/C++ 均支持 |
 | `--match_taptc_groups` | 关闭 | 原始 TAPTC 按输入分组选择一套参数 |
 | `--seed` | `20261025` | 非负 64 位整数，用于扰动复现；不会重生成输入数据 |
 | `--repeats` | `1` | 每个场景/配置的独立重复次数，须为正整数 |
@@ -166,7 +222,13 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 | `--offset` | `0` | 跳过载入顺序前多少场景 |
 | `--service_time` | `continuous` | `continuous` 或 `ceil` |
 | `--limit` | 不覆盖 | 调试时覆盖 ILS 无改进上限 / EILS 构造次数上限 |
-| `--progress_every` | `25` | 每处理多少输入场景打印进度；`0` 关闭进度输出 |
+| `--workers` | `1` | CPU 工作进程数，须为正整数；不同场景并行，实际值不超过 `场景数 × repeats` |
+| `--path_planner` | `auto` | 障碍数据自动使用 `visibility_dijkstra`，普通数据使用 `euclidean` |
+| `--visibility_epsilon` | `1e-6` | 可见图角点向外偏移量，内部 `[0,1]²` 地图单位；与 `z_test_path` 一致 |
+| `--cache_dir` | `z_test_path/cache` | 共享的逐场景导航缓存，独立于实验输出目录 |
+| `--path_workers` | `1` | 提前规划的 CPU 进程数，最大为所选场景数；普通数据不启动规划进程 |
+| `--rebuild_cache` | 关闭 | 重新计算并更新所选场景对应的导航缓存 |
+| `--progress_every` | `25` | 第一个场景完成后打印进度，之后每完成指定数量的场景打印一次；`0` 关闭进度输出 |
 | `--help` | — | 显示参数列表并退出 |
 
 即使修改 `--data`，默认输出目录仍按上表命名，不会自动改成 TAPTC 名称。**推荐每次显式指定 `--output_dir`。**
@@ -185,6 +247,8 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 | `deadline_groups.csv` | TAPTC 按真实截止时间分组汇总；均匀随机数据不生成此文件 |
 | `routes.jsonl` | 完整机器人路线、每个任务的完成时间；任务和机器人 ID 从 0 开始 |
 | `verification.json` | 执行 `verify_results.py` 后生成的复算结果 |
+| `path_planning.csv` | 障碍数据每个原始场景的缓存键、命中状态、规划时间和缓存读写时间；不按参数组或 repeats 重复 |
+| `path_distances.npz` | 本次搜索使用的距离表快照，带 SHA256；复算时无需共享缓存或重新规划 |
 | `backend_comparison.json`、`BACKEND_COMPARISON.md` | 执行 `compare_backends.py` 后生成的后端核对结果 |
 
 `summary.json` 中：
@@ -201,12 +265,18 @@ PyTorch 用于项目的数据读取和校验。这些入口使用 CPU，单场�
 | `mean_cost` | 每场景 cost 的平均值 |
 | `inference_seconds_per_scenario` | 每次完整求解的平均耗时，单位秒 |
 | `inference_seconds_total` | 对应统计范围内全部求解耗时之和，单位秒 |
-| `evaluation_wall_seconds` | 评估循环总墙钟时间，包含所有实际配置和整理/校验/输出开销 |
+| `evaluation_wall_seconds` | 评估循环总墙钟时间，包含所有实际配置和整理/校验/输出开销；并行时也包含进程池启动/关闭及进程间通信 |
+| `timing.workers` | 实际 CPU 工作进程数；`workers_requested` 保存命令行请求值 |
+| `path_planner` | 本次实际使用的 `euclidean` 或 `visibility_dijkstra` |
+| `path_planning_seconds_total` | 全部所选场景实际建图、Dijkstra 搜索和距离表计算的累计秒数；排除缓存读写，命中缓存贡献 0 |
+| `path_planning_wall_seconds` | 单独规划阶段的墙钟秒数，包括缓存读写和规划进程启动/通信；不含推理 |
+| `cache_hits` / `cache_misses` | 所选原始场景的导航缓存命中/未命中数 |
+| `cache_read_seconds_total` / `cache_write_seconds_total` | 导航缓存读写累计秒数，与规划计算、推理分别统计 |
 
 读取已有 Python 实验的 96 场景总体指标：
 
 ```bash
-"$EILS_PY" - <<'PY'
+python - <<'PY'
 import json
 from pathlib import Path
 
@@ -238,7 +308,27 @@ cost = sum(finish_time[i] / deadline[i]
 
 原始 ILS/EILS 允许不选择部分任务。为了计算全覆盖 cost，当前实现先冻结最优可行路线，再把未选任务追加给最早空闲的机器人，每次选择旅行时间加服务时间最小的任务。最后所有任务恰好访问一次。
 
-完成率必须与原生搜索得分一致，程序每次都会重放验证；cost 受补全顺序影响。这是明确的适配规则，不是作者公开的原版补全代码。
+完成率必须与所选候选的按时完成数一致，程序每次都会重放验证；cost 受补全顺序影响。这是明确的适配规则，不是作者公开的原版补全代码。
+
+### 切换优化目标
+
+默认 `--objective completion` 保留原版按时完成数目标和搜索行为。增加 `--objective cost` 后，每轮先按原有规则构造可行路线，再对全部剩余任务做相同的统一补全，以完整方案的上述 cost 评分，严格更低才更新最好解；同值保留先找到的解，不以完成率作为隐含优先目标。评分完成后恢复可行路线与已用任务标记，再执行原有 ILS/EILS 扰动。最终返回所选候选补全后的完整路线。
+
+cost 模式没有把构造邻域改成任意完整路线的重排邻域，仍使用原有 deadline-feasible 插入与扰动，因此属于 **cost 目标的 ILS/EILS 适配版**，不保证全局最优。ILS 的 `600` 表示对应目标连续无改进次数，改进会重置计数；EILS 的 tight/slack 仍分别为 `3000/5000` 次构造。cost 达到全局下界 `0` 时提前结束。每轮补全评分计入推理时间。
+
+例如对同一数据集运行两种目标（输出目录须各自为空）：
+
+```bash
+python EILS/evaluate.py \
+  --data z_test_path/data/n100_obstacles_example.pkl \
+  --backend python --algorithms ils eils --profiles tight slack \
+  --objective cost --seed 6732 \
+  --path_planner visibility_dijkstra --visibility_epsilon 0.01 \
+  --path_workers 8 --workers 8 \
+  --output_dir EILS/results/n100_obstacles_objective_cost
+```
+
+将 `--objective cost` 改为 `--objective completion` 并使用另一输出目录即可对照。CLI 的缓存策略不变；首次运行可用新缓存目录，重新测量规划时添加 `--rebuild_cache`。优化目标写入 `summary.json`、`run_config.json`、报告、逐场景 CSV 和路线记录；验证器会检查目标一致性，旧结果未记录目标时按 `completion` 解释。
 
 完成率更高并不保证 cost 更低：cost 同时受逾期任务数量和每个任务的相对逾期程度影响。算法间比较应保持数据、机器人数量、服务时间和补全规则一致。
 
@@ -246,7 +336,11 @@ cost = sum(finish_time[i] / deadline[i]
 
 统计的是 CPU 上**单个场景、完整搜索结束并形成完整路线的平均墙钟耗时**，包含距离/服务时间计算、搜索、剩余任务补全和路线提取。
 
-不包含数据读取与转换、Python 模块/动态库加载、C++ 编译、一次预热、独立路线重放校验、指标汇总和文件输出。额外的 `cpu_seconds` 是进程 CPU 时间，二者不要混用。
+不包含提前路径规划、缓存读写、数据读取与转换、Python 模块/动态库加载、C++ 编译、预热、独立路线重放校验、指标汇总和文件输出。障碍数据的推理阶段只把距离表转换为移动时间，不再建图或搜索路径。并行时，工作进程首次求解前会单独预热；进程启动和通信也不计入单次推理时间，但计入整批 `evaluation_wall_seconds`。额外的 `cpu_seconds` 是执行该求解的进程 CPU 时间，二者不要混用。
+
+路径规划单独统计：`path_planning_seconds_total` 是规划进程累计计算时间；`path_planning_wall_seconds` 是规划阶段实际墙钟时间，包含缓存读写及进程开销。`evaluation_wall_seconds` 只统计后续评估循环，排除整个提前规划阶段。两种累计时间均不能直接当成并行阶段墙钟时间。
+
+`--workers 1` 用于测量串行推理延迟；`--workers N` 用于加快整批评估。并行报告会记录实际进程数和资源竞争下的单次延迟，各次延迟之和不是整批完成所需时间。
 
 - 秒换毫秒：`inference_seconds_per_scenario × 1000`。
 - 96 场景总时间：看相同模型的 `inference_seconds_total`；不要把多配置合计的 `evaluation_wall_seconds` 当成单个算法的总推理时间。
@@ -269,15 +363,15 @@ cost = sum(finish_time[i] / deadline[i]
 复算已有正式 Python 结果，不重新搜索：
 
 ```bash
-"$EILS_PY" EILS/verify_results.py EILS/results/taptc96_python
+python EILS/verify_results.py EILS/results/taptc96_python
 ```
 
-程序重新读取路线，检查数据指纹、任务覆盖、机器人分配、完成时间、cost、完成率、种子、记录完整性和汇总，并写入 `verification.json`。原始数据仍须位于记录路径。
+程序重新读取路线，检查数据指纹、任务覆盖、机器人分配、完成时间、cost、完成率、种子、记录完整性和汇总，并写入 `verification.json`。障碍实验额外校验距离快照 SHA256、路线对应的缓存键、规划计时汇总；复算直接读取输出目录中的距离快照，不重新规划，删除共享缓存后仍可校验。原始数据仍须位于记录路径。
 
 比较已有实验，参数顺序是 **C++ 目录在前，Python 目录在后**：
 
 ```bash
-"$EILS_PY" EILS/compare_backends.py \
+python EILS/compare_backends.py \
   EILS/results/taptc96 \
   EILS/results/taptc96_python
 ```
@@ -289,20 +383,23 @@ cost = sum(finish_time[i] / deadline[i]
 ## 13. 测试、文件职责与常见问题
 
 ```bash
-"$EILS_PY" -m unittest discover -s EILS -t . -p 'test_*.py' -v
+python -m unittest discover -s EILS -t . -p 'test_*.py' -v
 ```
 
-本机当前 19 项测试通过。没有 `g++` 时，依赖编译器的跨后端核对测试会跳过，Python 求解仍可使用。完整记录见 [VALIDATION.md](VALIDATION.md)。
+测试覆盖求解器、数据指纹、Python/C++ 一致性，以及串行/并行结果一致性和命令行进度输出。没有 `g++` 时，依赖编译器的跨后端核对测试会跳过，Python 求解仍可使用。完整记录见 [VALIDATION.md](VALIDATION.md)。
 
 | 文件或目录 | 职责 |
 |---|---|
 | `evaluate.py` | 日常评测入口 |
 | `solver.py` | 数据准备、后端选择、完整路线重放与指标校验 |
 | `python_solver.py` | Python/NumPy 搜索实现 |
+| `navigation.py` | 障碍数据读取、调用共享规划器与缓存、规划计时汇总 |
 | `solver.cpp` | 保留的 C++ 搜索实现 |
 | `data_identity.py` | 输入文件清单与 SHA256 校验 |
 | `verify_results.py` | 复算已保存结果 |
 | `compare_backends.py` | 比较两种后端的对应结果 |
+| `test_parallel_evaluation.py` | 串行/多进程结果一致性、复算及命令行验证 |
+| `test_navigation.py` | 避障距离、尺度与非活跃机器人、双后端、规划缓存复用和独立落盘复算 |
 | `test_*.py`、`test_native.cpp` | 实现验证；日常评估无需直接运行 C++ 测试文件 |
 | `SOURCES.md`、`VALIDATION.md` | 文献与适配说明、验证记录 |
 | `results/` | 正式实验与调试归档，先看其中的索引 |
@@ -311,7 +408,9 @@ cost = sum(finish_time[i] / deadline[i]
 
 | 遇到的情况 | 处理方法 |
 |---|---|
-| `python` 找不到或缺少 NumPy/PyTorch | 使用第 2 节的 `EILS_PY`，或自己的项目依赖环境 |
+| `python` 找不到或缺少 NumPy/PyTorch | 按第 2 节执行 `conda activate mrta_c`，并检查该环境中的项目依赖 |
+| 启动后长时间没有新进度 | 使用 `--progress_every 1`；每个场景的全部配置完成后才更新进度，Python 正式搜索可能较慢 |
+| 想加快整批评估 | 使用 `--workers 8` 并按可用 CPU/内存调整；切换运行方式须使用新输出目录 |
 | `Output directory is not empty` | 换一个新目录名；不要覆盖正式实验 |
 | 输出目录被拒绝 | 将 `--output_dir` 放在 `EILS` 内 |
 | 随机 1000 场景使用匹配模式时报错 | 去掉 `--match_taptc_groups`，显式指定参数组 |

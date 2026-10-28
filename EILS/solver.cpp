@@ -25,15 +25,18 @@ struct Search {
 
     Search(int tasks, int robots, const double *xy, const double *starts,
            const double *due, const double *work, const double *capacity,
-           double speed, bool discrete)
+           double speed, bool discrete, const double *task_distances = nullptr,
+           const double *start_distances = nullptr)
         : n(tasks), m(robots), deadline(due), travel(n * n),
           start_travel(m * n), service(m * n), tours(m), finish(m), slack(m),
           cache(m, std::vector<Candidate>(n)), used(n, false) {
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j)
-                travel[i*n+j] = std::hypot(xy[2*i]-xy[2*j], xy[2*i+1]-xy[2*j+1]) / speed;
+                travel[i*n+j] = (task_distances ? task_distances[i*n+j]
+                    : std::hypot(xy[2*i]-xy[2*j], xy[2*i+1]-xy[2*j+1])) / speed;
             for (int a = 0; a < m; ++a) {
-                start_travel[a*n+i] = std::hypot(starts[2*a]-xy[2*i], starts[2*a+1]-xy[2*i+1]) / speed;
+                start_travel[a*n+i] = (start_distances ? start_distances[a*n+i]
+                    : std::hypot(starts[2*a]-xy[2*i], starts[2*a+1]-xy[2*i+1])) / speed;
                 double value = work[i] / capacity[a];
                 service[a*n+i] = discrete ? std::ceil(value) : value;
             }
@@ -137,6 +140,20 @@ struct Search {
         }
     }
 
+    double completed_cost() {
+        auto saved_tours = tours;
+        auto saved_used = used;
+        std::vector<double> output_finish(n);
+        std::vector<int> output_robot(n), output_order(n), output_lengths(m);
+        complete_all(output_finish.data(), output_robot.data(), output_order.data(), output_lengths.data());
+        double cost = 0;
+        for (int task = 0; task < n; ++task)
+            if (output_finish[task] > deadline[task]) cost += output_finish[task] / deadline[task];
+        tours.swap(saved_tours);
+        used.swap(saved_used);
+        return cost;
+    }
+
     void complete_all(double *output_finish, int *output_robot, int *output_order,
                       int *output_lengths) {
         std::fill(used.begin(), used.end(), false);
@@ -183,33 +200,38 @@ struct Search {
 }  // namespace
 
 // algorithm: 0 = construction only; 1 = ILS; 2 = enhanced ILS.
-extern "C" int solve_taptc(
+static int solve_impl(
     int n, int m, const double *xy, const double *starts, const double *deadline,
     const double *work, const double *capacity, double speed, int algorithm,
     int limit, double coefficient, std::uint64_t seed, int discrete,
     double *out_finish, int *out_robot, int *out_order, int *out_lengths,
-    int *out_stats) {
+    int *out_stats, const double *task_distances, const double *start_distances,
+    int objective = 0) {
     if (n < 1 || m < 1 || algorithm < 0 || algorithm > 2 || limit < 1 ||
-        !(coefficient > 0 && coefficient <= 1) || !(speed > 0)) return 1;
+        !(coefficient > 0 && coefficient <= 1) || !(speed > 0) || objective < 0 || objective > 1) return 1;
     try {
-        Search search(n, m, xy, starts, deadline, work, capacity, speed, discrete != 0);
+        Search search(n, m, xy, starts, deadline, work, capacity, speed, discrete != 0,
+                      task_distances, start_distances);
         std::mt19937_64 rng(seed);
         std::vector<std::vector<int>> best(m);
         int best_score = -1, iterations = 0, best_iteration = 0, trials = 0;
+        double best_cost = std::numeric_limits<double>::infinity();
         int remove = 1, start = 0;
         // ILS' threshold depends on total tasks, not current score.
         int threshold = std::max(1, static_cast<int>(std::floor(n * coefficient / m)));
         while (algorithm == 2 ? iterations < limit : (algorithm == 0 ? iterations < 1 : trials < limit)) {
             ++iterations;
             int score = search.construct();
-            if (score > best_score) {
+            double cost = objective == 1 ? search.completed_cost() : std::numeric_limits<double>::infinity();
+            if (objective == 1 ? cost < best_cost : score > best_score) {
                 best_score = score;
+                best_cost = cost;
                 best = search.tours;
                 best_iteration = iterations;
                 trials = 0;
                 remove = 1;
             } else ++trials;
-            if (score == n || algorithm == 0) break;
+            if ((objective == 1 ? cost == 0 : score == n) || algorithm == 0) break;
             if (algorithm == 2) {
                 // Algorithm 2 does not specify integer rounding or r=0.
                 int count = std::max(1, static_cast<int>(std::floor(score * coefficient / m)));
@@ -232,4 +254,49 @@ extern "C" int solve_taptc(
         out_stats[2] = best_iteration;
         return 0;
     } catch (...) { return 2; }
+}
+
+extern "C" int solve_taptc(
+    int n, int m, const double *xy, const double *starts, const double *deadline,
+    const double *work, const double *capacity, double speed, int algorithm,
+    int limit, double coefficient, std::uint64_t seed, int discrete,
+    double *out_finish, int *out_robot, int *out_order, int *out_lengths, int *out_stats) {
+    return solve_impl(n, m, xy, starts, deadline, work, capacity, speed, algorithm,
+                      limit, coefficient, seed, discrete, out_finish, out_robot,
+                      out_order, out_lengths, out_stats, nullptr, nullptr);
+}
+
+extern "C" int solve_taptc_distances(
+    int n, int m, const double *task_distances, const double *start_distances,
+    const double *deadline, const double *work, const double *capacity, double speed,
+    int algorithm, int limit, double coefficient, std::uint64_t seed, int discrete,
+    double *out_finish, int *out_robot, int *out_order, int *out_lengths, int *out_stats) {
+    if (!task_distances || !start_distances) return 1;
+    return solve_impl(n, m, nullptr, nullptr, deadline, work, capacity, speed, algorithm,
+                      limit, coefficient, seed, discrete, out_finish, out_robot,
+                      out_order, out_lengths, out_stats, task_distances, start_distances);
+}
+
+// New entry points preserve the original completion-only ABI above.
+extern "C" int solve_taptc_objective(
+    int n, int m, const double *xy, const double *starts, const double *deadline,
+    const double *work, const double *capacity, double speed, int algorithm,
+    int limit, double coefficient, std::uint64_t seed, int discrete,
+    double *out_finish, int *out_robot, int *out_order, int *out_lengths, int *out_stats,
+    int objective) {
+    return solve_impl(n, m, xy, starts, deadline, work, capacity, speed, algorithm,
+                      limit, coefficient, seed, discrete, out_finish, out_robot,
+                      out_order, out_lengths, out_stats, nullptr, nullptr, objective);
+}
+
+extern "C" int solve_taptc_distances_objective(
+    int n, int m, const double *task_distances, const double *start_distances,
+    const double *deadline, const double *work, const double *capacity, double speed,
+    int algorithm, int limit, double coefficient, std::uint64_t seed, int discrete,
+    double *out_finish, int *out_robot, int *out_order, int *out_lengths, int *out_stats,
+    int objective) {
+    if (!task_distances || !start_distances) return 1;
+    return solve_impl(n, m, nullptr, nullptr, deadline, work, capacity, speed, algorithm,
+                      limit, coefficient, seed, discrete, out_finish, out_robot,
+                      out_order, out_lengths, out_stats, task_distances, start_distances, objective);
 }

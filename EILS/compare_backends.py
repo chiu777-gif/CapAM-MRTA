@@ -35,10 +35,18 @@ def compare(cpp_directory, python_directory):
     py_summary = json.loads((python_directory / "summary.json").read_text())
     if cpp_summary.get("backend", "cpp") != "cpp" or py_summary.get("backend") != "python":
         raise ValueError("Expected C++ and Python result directories, in that order")
+    if cpp_summary.get("objective", "completion") != py_summary.get("objective", "completion"):
+        raise ValueError("Experiment settings differ: objective")
     for field in ("dataset_sha256", "scenarios_per_run", "offset", "service_time", "seed", "repeats",
                   "limit_override", "profiles", "algorithms", "residual_policy", "search_objective"):
         if cpp_summary[field] != py_summary[field]:
             raise ValueError("Experiment settings differ: {}".format(field))
+    if cpp_summary.get("path_planner", "euclidean") != py_summary.get("path_planner", "euclidean"):
+        raise ValueError("Experiment settings differ: path_planner")
+    if py_summary.get("path_planner") == "visibility_dijkstra":
+        for field in ("visibility_epsilon", "navigation_keys"):
+            if cpp_summary.get(field) != py_summary.get(field):
+                raise ValueError("Experiment settings differ: {}".format(field))
     cpp_rows, py_rows = read_rows(cpp_directory), read_rows(python_directory)
     cpp_routes, py_routes = read_routes(cpp_directory), read_routes(python_directory)
     if set(py_rows) != set(py_routes) or not set(py_rows).issubset(cpp_rows) or not set(py_rows).issubset(cpp_routes):

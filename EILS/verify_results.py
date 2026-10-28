@@ -13,18 +13,53 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from EILS.evaluate import summarize, taptc_group
 from EILS.data_identity import dataset_identity
-from EILS.solver import prepare, validate_solution
-from problems.mrta.data import load_file_dataset
+from EILS.navigation import load_evaluation_data, summarize_planning
+from EILS.solver import prepare, sha256, validate_solution
 
 
 def verify(output):
     output = Path(output)
     summary = json.loads((output / "summary.json").read_text())
+    if summary.get("objective", "completion") not in ("completion", "cost"):
+        raise ValueError("Unknown optimization objective")
     if dataset_identity(summary["dataset"])["sha256"] != summary["dataset_sha256"]:
         raise ValueError("Dataset hash changed")
-    dataset = load_file_dataset([summary["dataset"]], offset=summary["offset"],
-                                num_samples=summary["scenarios_per_run"])
-    prepared = [prepare(instance) for instance in dataset]
+    dataset, obstacle_map, _ = load_evaluation_data(
+        summary["dataset"], summary["offset"], summary["scenarios_per_run"])
+    cached = summary.get("path_planner") == "visibility_dijkstra"
+    if obstacle_map is not None and not cached:
+        raise ValueError("Obstacle result is missing visibility_dijkstra navigation metadata")
+    if cached:
+        snapshot = output / summary["path_distances_file"]
+        if sha256(snapshot) != summary["path_distances_sha256"]:
+            raise ValueError("Saved path distance snapshot hash changed")
+        with np.load(snapshot, allow_pickle=False) as tables:
+            prepared = [prepare(instance, {name: tables["{}_{}".format(name, index)]
+                                          for name in ("task_to_task", "robot_to_task")})
+                        for index, instance in enumerate(dataset)]
+        with (output / "path_planning.csv").open() as handle:
+            planning_rows = list(csv.DictReader(handle))
+        if [int(row["scenario_index"]) for row in planning_rows] != list(
+                range(summary["offset"], summary["offset"] + len(dataset))):
+            raise ValueError("Path planning scenarios disagree with selected input")
+        if [row["navigation_key"] for row in planning_rows] != summary["navigation_keys"]:
+            raise ValueError("Path planning cache keys disagree")
+        for row in planning_rows:
+            if row["cache_hit"] not in ("True", "False"):
+                raise ValueError("Invalid cache hit flag")
+            row["cache_hit"] = row["cache_hit"] == "True"
+            for name in ("path_planning_seconds", "path_planning_cpu_seconds",
+                         "cache_read_seconds", "cache_write_seconds"):
+                row[name] = float(row[name])
+                if not np.isfinite(row[name]) or row[name] < 0:
+                    raise ValueError("Invalid path timing")
+            if row["cache_hit"] and row["path_planning_seconds"] != 0:
+                raise ValueError("Cache hit must have zero path planning time")
+        for name, value in summarize_planning(planning_rows).items():
+            if not np.isclose(value, summary[name], atol=1e-10, rtol=1e-12):
+                raise ValueError("Path planning summary mismatch: {}".format(name))
+    else:
+        prepared = [prepare(instance) for instance in dataset]
     rows = []
     keys = set()
     with (output / "scenarios.csv").open() as scenarios, (output / "routes.jsonl").open() as routes:
@@ -32,6 +67,8 @@ def verify(output):
             if raw_row is None or route_line is None:
                 raise ValueError("Route and scenario counts disagree")
             row = dict(raw_row)
+            if row.get("objective", "completion") != summary.get("objective", "completion"):
+                raise ValueError("Saved scenario objective disagrees with experiment configuration")
             if row.get("backend", "cpp") != summary.get("backend", "cpp"):
                 raise ValueError("Saved backend disagrees with experiment configuration")
             for field in ("repeat", "scenario_index", "task_count", "n_agents", "seed", "tasks_done",
@@ -40,6 +77,8 @@ def verify(output):
             for field in ("cost", "completion_percent", "inference_seconds", "cpu_seconds"):
                 row[field] = float(row[field])
             record = json.loads(route_line)
+            if record.get("objective", "completion") != summary.get("objective", "completion"):
+                raise ValueError("Saved route objective disagrees with experiment configuration")
             key = (row["algorithm"], row["profile"], row["repeat"], row["scenario_index"])
             if key in keys:
                 raise ValueError("Duplicate result key: {}".format(key))
@@ -47,6 +86,12 @@ def verify(output):
             if key != (record["algorithm"], record["profile"], record["repeat"], record["scenario_index"]):
                 raise ValueError("Route/scenario identifiers disagree")
             data = prepared[row["scenario_index"] - summary["offset"]]
+            if "path_planner" in summary:
+                index = row["scenario_index"] - summary["offset"]
+                for saved in (row, record):
+                    if (saved.get("path_planner") != summary["path_planner"]
+                            or saved.get("navigation_key") != summary["navigation_keys"][index]):
+                        raise ValueError("Saved route/scenario navigation metadata disagrees")
             input_name = dataset.names[row["scenario_index"] - summary["offset"]]
             original_group = {"group1": "tight", "group2": "slack"}.get(Path(input_name).parent.name)
             if original_group and row.get("deadline_group") != original_group:
@@ -121,6 +166,9 @@ def verify(output):
               "checks": ["dataset identity", "all algorithm/profile/scenario/repeat combinations present exactly once",
                          "all tasks assigned once to active robots", "full route finish times", "native completion unchanged",
                          "saved cost and completion", "seed derivation", "iteration/timing validity", "group and overall summaries"]}
+    if cached:
+        result["checks"].extend(["saved path distance snapshot identity", "cached-distance route replay",
+                                  "navigation cache keys", "path planning timing and summaries"])
     (output / "verification.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
     return result

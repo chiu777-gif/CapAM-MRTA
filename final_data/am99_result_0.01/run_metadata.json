@@ -1,0 +1,8 @@
+{
+  "visibility_epsilon": 0.01,
+  "path_cache_enabled": false,
+  "evaluation_order": "sequential: model then map",
+  "collision_check": "Original closed-rectangle segment predicate must pass in both directions; runtime patch only",
+  "runtime_evaluator": "/tmp/epsilon_0001_uncached_evaluate.py",
+  "checkpoint": "/home/hustcsib/chiu_code/CapAM-MRTA/outputs/mrta_100/am_rl_100_20261024T154131715750/epoch-54.pt"
+}

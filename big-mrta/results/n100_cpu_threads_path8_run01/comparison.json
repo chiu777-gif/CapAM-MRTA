@@ -1,0 +1,112 @@
+{
+  "evaluated_at_utc": "2026-10-27T14:19:15.229198+00:00",
+  "method": "Serial ABBA order: cold cpu1, cold cpu4, warm cpu4, warm cpu1. Each run contains 100 scenarios, completion/full-visit, epsilon=1e-6, path_workers=8, one warmup. Cold runs force rebuilding in a private cache; warm runs reuse it. Planning subprocesses each use one numerical thread. Inference averages cover two runs per setting; no concurrent benchmark runs. All routes are identical and independently audited. Private cache deleted after audit.",
+  "source_sha256": {
+    "baseline.py": "ec80276e9fc000551e9b2aab454eb8d626fefbda36b941d9860757b95fdac6a1",
+    "evaluate.py": "68b10a04ec16b1733683a0a750946f61c5e035b008077fcdd8a2088cec6aea80",
+    "navigation.py": "7134b3b7e16ab0bff02509a5cb99d89ecbca2b3fd9383ebea02a5845d8ace14a"
+  },
+  "runs": [
+    {
+      "run": "cold_cpu1",
+      "cache_mode": "cold",
+      "cpu_threads": 1,
+      "scenarios": 100,
+      "path_workers": 8,
+      "dataset_sha256": "758c7e3a3592a0b1ef59ba6d64d265dc9ce403fbdb621faf0601e38f24a3f043",
+      "mean_cost": 111.23731777191162,
+      "completion_percent": 72.39,
+      "inference_seconds_total": 21.31902596191503,
+      "inference_seconds_per_scenario": 0.2131902596191503,
+      "path_preprocessing_wall_seconds": 18.992108308011666,
+      "path_planning_seconds_total": 130.03848674334586,
+      "path_planning_cpu_seconds_total": 130.035914932,
+      "cache_read_seconds_total": 0.0,
+      "cache_write_seconds_total": 2.7851442359387875,
+      "cache_hits": 0,
+      "cache_misses": 100
+    },
+    {
+      "run": "cold_cpu4",
+      "cache_mode": "cold",
+      "cpu_threads": 4,
+      "scenarios": 100,
+      "path_workers": 8,
+      "dataset_sha256": "758c7e3a3592a0b1ef59ba6d64d265dc9ce403fbdb621faf0601e38f24a3f043",
+      "mean_cost": 111.23731777191162,
+      "completion_percent": 72.39,
+      "inference_seconds_total": 21.387951888842508,
+      "inference_seconds_per_scenario": 0.21387951888842507,
+      "path_preprocessing_wall_seconds": 19.097695113858208,
+      "path_planning_seconds_total": 132.76172689185478,
+      "path_planning_cpu_seconds_total": 132.75335731599998,
+      "cache_read_seconds_total": 0.0,
+      "cache_write_seconds_total": 2.807826249394566,
+      "cache_hits": 0,
+      "cache_misses": 100
+    },
+    {
+      "run": "warm_cpu4",
+      "cache_mode": "warm",
+      "cpu_threads": 4,
+      "scenarios": 100,
+      "path_workers": 8,
+      "dataset_sha256": "758c7e3a3592a0b1ef59ba6d64d265dc9ce403fbdb621faf0601e38f24a3f043",
+      "mean_cost": 111.23731777191162,
+      "completion_percent": 72.39,
+      "inference_seconds_total": 22.223606244660914,
+      "inference_seconds_per_scenario": 0.22223606244660915,
+      "path_preprocessing_wall_seconds": 1.7689260260667652,
+      "path_planning_seconds_total": 0.0,
+      "path_planning_cpu_seconds_total": 0.0,
+      "cache_read_seconds_total": 2.1848154785111547,
+      "cache_write_seconds_total": 0.0,
+      "cache_hits": 100,
+      "cache_misses": 0
+    },
+    {
+      "run": "warm_cpu1",
+      "cache_mode": "warm",
+      "cpu_threads": 1,
+      "scenarios": 100,
+      "path_workers": 8,
+      "dataset_sha256": "758c7e3a3592a0b1ef59ba6d64d265dc9ce403fbdb621faf0601e38f24a3f043",
+      "mean_cost": 111.23731777191162,
+      "completion_percent": 72.39,
+      "inference_seconds_total": 23.74880495830439,
+      "inference_seconds_per_scenario": 0.2374880495830439,
+      "path_preprocessing_wall_seconds": 1.9461721279658377,
+      "path_planning_seconds_total": 0.0,
+      "path_planning_cpu_seconds_total": 0.0,
+      "cache_read_seconds_total": 2.5548133549746126,
+      "cache_write_seconds_total": 0.0,
+      "cache_hits": 100,
+      "cache_misses": 0
+    }
+  ],
+  "averages": {
+    "1": {
+      "inference_ms_per_scenario": 225.3391546010971,
+      "inference_ms_per_scenario_runs": [
+        213.1902596191503,
+        237.4880495830439
+      ],
+      "cold_path_preprocessing_wall_seconds": 18.992108308011666,
+      "warm_path_preprocessing_wall_seconds": 1.9461721279658377
+    },
+    "4": {
+      "inference_ms_per_scenario": 218.0577906675171,
+      "inference_ms_per_scenario_runs": [
+        213.87951888842508,
+        222.23606244660914
+      ],
+      "cold_path_preprocessing_wall_seconds": 19.097695113858208,
+      "warm_path_preprocessing_wall_seconds": 1.7689260260667652
+    }
+  },
+  "cpu4_relative_to_cpu1": {
+    "inference_ms_per_scenario": 0.967687089505285,
+    "cold_path_preprocessing_wall_seconds": 1.0055595094622538,
+    "warm_path_preprocessing_wall_seconds": 0.9089257834124198
+  }
+}

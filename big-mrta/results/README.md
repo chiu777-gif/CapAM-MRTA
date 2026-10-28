@@ -9,6 +9,8 @@
 | 原始 TAPTC `data/mrta_gini` | 96 场景，每场景 100 任务；2/3/5/7 个机器人各 24 场景 | CPU 4 线程，batch=1，每协议首场景预热一次 | [taptc96/report.md](taptc96/report.md) |
 | 训练同分布 `n100_train_matched_1000_seed20261024.pkl` | 1000 场景，每场景 100 任务；2–7 个机器人 | CPU 4 线程，batch=1，每协议首场景预热一次 | [1000 场景 report.md](n100_train_matched_1000_seed20261024/report.md) |
 
+障碍地图的新评测：[n100_obstacles_visibility_run01/report.md](n100_obstacles_visibility_run01/report.md)。输入为 `z_test_path/data/n100_obstacles_example.pkl` 的 100 场景，CPU 单线程、每协议首场景预热一次、可见图 + Dijkstra，`visibility_epsilon=1e-6`。全任务适配版平均 cost 为 111.237318，按时完成率为 72.39%，平均推理 233.907 ms/场景。100/100 场景命中共享缓存，实际规划 0 秒，缓存读取共 2.490217 秒；这是热缓存结果。两个协议的路径准备统计共享，不相加。其他实验若使用 epsilon=0.01，需要用相同参数重新评测后比较。
+
 主评测的数值以**对应协议的 `summary.json`** 为准。原版与适配版不合并，有限 cost 属于全任务适配版。
 
 | 要查看的文件 | TAPTC96 | 训练同分布 1000 场景 |
@@ -23,6 +25,28 @@
 | 导出数据核验 | [audit.json](taptc96/audit.json) | [audit.json](n100_train_matched_1000_seed20261024/audit.json) |
 
 每个协议目录下的 `routes.jsonl` 还保存逐任务机器人分配、时间及 deadline 放宽标记。
+
+## completion / cost 配置对比
+
+[100 场景目标对比报告](n100_obstacles_objectives_run01/REPORT.md)：输入 `z_test_path/data/n100_obstacles_example.pkl`，全任务适配协议，单线程、预热一次、epsilon=1e-6，两个目标均命中 100/100 路径缓存。
+
+| 目标 | 平均 cost | 按时完成率 | 平均推理 ms/场景 |
+|---|---:|---:|---:|
+| completion（默认原策略） | 111.237318 | 72.39% | 192.120 |
+| cost（本轮新增惩罚匹配） | 343.591554 | 39.80% | 63.646 |
+
+本次单步 cost 匹配的最终 cost 更高，完成率更低；局部代价最小不保证最终调度更优。完成率配置继续作为默认。数据集、距离和评价公式相同，全部任务都被访问，两个目标均完成 100 场景重放核验。逐场景差值见 [paired_scenarios.csv](n100_obstacles_objectives_run01/paired_scenarios.csv)，机器可读汇总见 [comparison.json](n100_obstacles_objectives_run01/comparison.json)。
+
+## cpu_threads=1 / 4，path_workers=8
+
+[100 场景实测报告](n100_cpu_threads_path8_run01/REPORT.md)：completion / capam_full_visit，epsilon=1e-6，每次预热一次。按冷 CPU1、冷 CPU4、热 CPU4、热 CPU1 的顺序串行运行，推理取每组两次均值。
+
+| cpu_threads | 推理 ms/场景 | 冷缓存路径准备墙钟 s | 热缓存路径准备墙钟 s |
+|---|---:|---:|---:|
+| 1 | 225.339 | 18.992 | 1.946 |
+| 4 | 218.058 | 19.098 | 1.769 |
+
+4 线程推理均值耗时低约 3.23%，但组内波动更大，不能确认稳定加速；路径规划基本持平。两组规划都为 8 进程、每个子进程 1 条数值线程。四次运行所有路线和指标一致，均通过 100 场景重放核验。热缓存实际规划耗时为 0；上表包含缓存读取和进程启动退出。原始汇总见 [comparison.json](n100_cpu_threads_path8_run01/comparison.json)，复现实验见 [benchmark.py](n100_cpu_threads_path8_run01/benchmark.py)。
 
 ## TAPTC96 目录里的补充文件分别是什么？
 

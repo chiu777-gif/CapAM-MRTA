@@ -1,0 +1,24 @@
+{
+  "dataset": "/home/hustcsib/chiu_code/CapAM-MRTA/z_test_path/data/n100_obstacles_example.pkl",
+  "backend": "python",
+  "algorithms": [
+    "ils",
+    "eils"
+  ],
+  "profiles": [
+    "tight",
+    "slack"
+  ],
+  "seed": 6732,
+  "visibility_epsilon": 0.01,
+  "path_workers": 8,
+  "workers": 8,
+  "path_cache_enabled": false,
+  "search_budget": "default; no limit override",
+  "objective_order": [
+    "completion",
+    "cost"
+  ],
+  "collision_check": "same runtime bidirectional segment check as preceding epsilon=0.01 experiments",
+  "runtime_evaluator": "/tmp/eils_python_no_cache_evaluate.py"
+}

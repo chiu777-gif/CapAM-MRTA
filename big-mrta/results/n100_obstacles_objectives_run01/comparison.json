@@ -1,0 +1,48 @@
+{
+  "data_sources": [
+    "/home/hustcsib/chiu_code/CapAM-MRTA/z_test_path/data/n100_obstacles_example.pkl"
+  ],
+  "dataset_sha256": "758c7e3a3592a0b1ef59ba6d64d265dc9ce403fbdb621faf0601e38f24a3f043",
+  "scenarios": 100,
+  "protocol": "capam_full_visit",
+  "path_planner": "visibility_dijkstra",
+  "visibility_epsilon": 1e-06,
+  "cpu_threads": 1,
+  "warmup_scenarios": 1,
+  "objectives": {
+    "completion": {
+      "objective_definition": "Original deadline-feasible incentive matching; relax deadlines only on empty assignments in full-visit mode. Heuristic for on-time completion, not a global maximum-completion solver.",
+      "mean_cost": 111.23731777191162,
+      "completion_percent": 72.39,
+      "assigned_tasks": 10000,
+      "unassigned_tasks": 0,
+      "inference_seconds_per_scenario": 0.19211981852306054,
+      "path_planning_seconds_total": 0.0,
+      "cache_hits": 100,
+      "cache_misses": 0,
+      "cache_read_seconds_total": 1.7510217854287475,
+      "cache_write_seconds_total": 0.0
+    },
+    "cost": {
+      "objective_definition": "Hungarian minimum predicted added deadline cost: 0 when finish <= deadline, otherwise finish/deadline. All remaining tasks are eligible, including late ones. Equal-cost assignments follow SciPy deterministic row/task order. If the current robot is unmatched when tasks are fewer than robots, select its minimum-cost task. Visits every task; local matching does not guarantee minimum final schedule cost.",
+      "mean_cost": 343.59155426025393,
+      "completion_percent": 39.8,
+      "assigned_tasks": 10000,
+      "unassigned_tasks": 0,
+      "inference_seconds_per_scenario": 0.06364573678467422,
+      "path_planning_seconds_total": 0.0,
+      "cache_hits": 100,
+      "cache_misses": 0,
+      "cache_read_seconds_total": 1.656078108586371,
+      "cache_write_seconds_total": 0.0
+    }
+  },
+  "cost_minus_completion": {
+    "mean_cost": 232.3542364883423,
+    "relative_cost_change_percent": 208.88155265014285,
+    "completion_percentage_points": -32.59,
+    "scenarios_cost_lower": 0,
+    "scenarios_cost_equal": 0,
+    "scenarios_cost_higher": 100
+  }
+}

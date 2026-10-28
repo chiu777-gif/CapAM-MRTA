@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "verified_scenarios": 1200,
+  "cache_hits": 0,
+  "cache_misses": 1200,
+  "finished_at_utc": "2026-10-28T11:01:19.233213+00:00",
+  "maps": [
+    "example",
+    "four_rooms",
+    "random_blocks_d10_s20261028",
+    "open"
+  ]
+}

@@ -36,10 +36,16 @@ def library():
             ctypes.c_double, ctypes.c_int, ctypes.c_int, ctypes.c_double,
             ctypes.c_uint64, ctypes.c_int, array_f, array_i, array_i, array_i, array_i]
         _library.solve_taptc.restype = ctypes.c_int
+        _library.solve_taptc_distances.argtypes = _library.solve_taptc.argtypes
+        _library.solve_taptc_distances.restype = ctypes.c_int
+        for name in ("solve_taptc_objective", "solve_taptc_distances_objective"):
+            function = getattr(_library, name)
+            function.argtypes = _library.solve_taptc.argtypes + [ctypes.c_int]
+            function.restype = ctypes.c_int
     return _library
 
 
-def prepare(instance):
+def prepare(instance, navigation=None):
     """Keep saved normalized units; ratios already give travel/service seconds."""
     m = int(instance["n_agents"])
     arrays = {}
@@ -62,16 +68,30 @@ def prepare(instance):
             or (arrays["robots_work_capacity"] <= 0).any()):
         raise ValueError("Invalid task count, robot count, speed, deadlines or work values")
     arrays.update(n=n, m=m, speed=speed)
+    if navigation is not None:
+        for name, shape in (("task_to_task", (n, n)), ("robot_to_task", (m, n))):
+            value = np.asarray(navigation[name], dtype=np.float64)
+            if name == "robot_to_task" and value.ndim == 2:
+                value = value[:m]
+            if value.shape != shape or not np.isfinite(value).all() or (value < 0).any():
+                raise ValueError("Invalid cached {} distances: expected nonnegative finite {}".format(name, shape))
+            arrays[name] = np.ascontiguousarray(value)
+        table = arrays["task_to_task"]
+        if not np.array_equal(table, table.T) or np.any(np.diag(table)):
+            raise ValueError("Cached task distances must be symmetric with a zero diagonal")
     return arrays
 
 
 def solve(data, algorithm="eils", profile="tight", seed=20261025,
-          service_time="continuous", limit=None, coefficient=None, backend="python"):
+          service_time="continuous", limit=None, coefficient=None, backend="python",
+          objective="completion"):
     parameters = PROFILES[profile]
     if algorithm not in ("construct", "ils", "eils"):
         raise ValueError("Unknown algorithm")
     if service_time not in ("continuous", "ceil"):
         raise ValueError("Unknown service time mode")
+    if objective not in ("completion", "cost"):
+        raise ValueError("objective must be completion or cost")
     default_limit = parameters["ils_trials" if algorithm == "ils" else "eils_iterations"]
     default_coefficient = parameters["ils_coefficient" if algorithm == "ils" else "eils_coefficient"]
     limit = default_limit if limit is None else limit
@@ -85,7 +105,7 @@ def solve(data, algorithm="eils", profile="tight", seed=20261025,
             from .python_solver import solve_python
         except ImportError:
             from python_solver import solve_python
-        return solve_python(data, algorithm, limit, coefficient, seed, service_time)
+        return solve_python(data, algorithm, limit, coefficient, seed, service_time, objective)
     if backend != "cpp":
         raise ValueError("backend must be python or cpp")
     n, m = data["n"], data["m"]
@@ -94,11 +114,16 @@ def solve(data, algorithm="eils", profile="tight", seed=20261025,
     order = np.zeros(n, dtype=np.int32)
     lengths = np.zeros(m, dtype=np.int32)
     stats = np.zeros(3, dtype=np.int32)
-    status = library().solve_taptc(
-        n, m, data["loc"], data["robots_start_location"], data["deadline"],
+    cached = "task_to_task" in data
+    name = "solve_taptc_distances" if cached else "solve_taptc"
+    native = getattr(library(), name + ("_objective" if objective == "cost" else ""))
+    arguments = (
+        n, m, data["task_to_task"] if cached else data["loc"],
+        data["robot_to_task"] if cached else data["robots_start_location"], data["deadline"],
         data["workload"], data["robots_work_capacity"], data["speed"],
         {"construct": 0, "ils": 1, "eils": 2}[algorithm], limit, coefficient, seed,
         int(service_time == "ceil"), finish, robots, order, lengths, stats)
+    status = native(*(arguments + (1,) if objective == "cost" else arguments))
     if status:
         raise RuntimeError("Native solver failed with status {}".format(status))
     ends = np.cumsum(lengths)
@@ -117,7 +142,7 @@ def validate_solution(data, result, service_time="continuous"):
     replay = np.zeros(data["n"])
     native_prefix_count = 0
     for robot, route in enumerate(routes):
-        previous = data["robots_start_location"][robot]
+        previous = -1
         time = 0.0
         seen_late = False
         for task in route:
@@ -126,14 +151,20 @@ def validate_solution(data, result, service_time="continuous"):
             service = data["workload"][task] / data["robots_work_capacity"][robot]
             if service_time == "ceil":
                 service = np.ceil(service)
-            time += float(np.linalg.norm(data["loc"][task] - previous)) / data["speed"] + service
+            if "task_to_task" in data:
+                distance = (data["robot_to_task"][robot, task] if previous < 0
+                            else data["task_to_task"][previous, task])
+            else:
+                point = data["robots_start_location"][robot] if previous < 0 else data["loc"][previous]
+                distance = np.linalg.norm(data["loc"][task] - point)
+            time += float(distance) / data["speed"] + service
             replay[task] = time
             on_time = time <= data["deadline"][task]
             if on_time and seen_late:
                 raise ValueError("Unexpected feasible task after residual completion")
             native_prefix_count += int(on_time)
             seen_late |= not on_time
-            previous = data["loc"][task]
+            previous = task
     if not np.allclose(replay, result["finish_times"], atol=1e-9, rtol=1e-12):
         raise ValueError("Native finish times disagree with independent route replay")
     if native_prefix_count != result["native_completed_tasks"]:

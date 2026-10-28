@@ -23,6 +23,9 @@ def main():
     for key in ('dataset_sha256', 'offset', 'num_samples_requested', 'robot_count_histogram', 'cpu_threads'):
         if first[key] != second[key]:
             raise ValueError('Incompatible protocol summaries: ' + key)
+    for key, default in (('path_planner', 'euclidean'), ('visibility_epsilon', None), ('objective', 'completion')):
+        if first.get(key, default) != second.get(key, default):
+            raise ValueError('Incompatible protocol summaries: ' + key)
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), constrained_layout=True)
     for protocol, (label, color, style, marker) in names.items():
         summary = summaries[protocol]

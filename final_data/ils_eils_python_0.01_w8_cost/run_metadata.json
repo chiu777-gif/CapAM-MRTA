@@ -1,0 +1,22 @@
+{
+  "backend": "python",
+  "algorithms": [
+    "ils",
+    "eils"
+  ],
+  "profiles": [
+    "tight",
+    "slack"
+  ],
+  "objective": "cost",
+  "limit_override": null,
+  "visibility_epsilon": 0.01,
+  "path_workers": 8,
+  "workers": 8,
+  "seed": 6732,
+  "service_time": "continuous",
+  "path_cache_enabled": false,
+  "collision_check": "Original closed-rectangle segment predicate must pass in both directions; same runtime patch as neural model epsilon=0.01 evaluations",
+  "evaluation_order": "sequential maps; workers=8 parallel scenarios within each map",
+  "runtime_evaluator": "/tmp/eils_python_no_cache_evaluate.py"
+}

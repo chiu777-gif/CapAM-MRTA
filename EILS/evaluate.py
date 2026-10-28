@@ -1,13 +1,17 @@
 """Evaluate paper ILS/EILS profiles on fixed MRTA data; all output stays in EILS."""
 import argparse
 from collections import defaultdict
+from contextlib import contextmanager, nullcontext
 import csv
 from datetime import datetime, timezone
 import json
+import math
+import multiprocessing
 import os
 from pathlib import Path
 import platform
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -18,13 +22,17 @@ sys.path.insert(0, str(REPO))
 
 import numpy as np
 import torch
-from problems.mrta.data import load_file_dataset
+from EILS.navigation import load_evaluation_data, plan_scenario, summarize_planning
+from z_test_path.path_planner import make_planner, planner_settings
+from z_test_path.visibility_planner import DEFAULT_VISIBILITY_EPSILON
 try:
     from .data_identity import dataset_identity
     from .solver import PROFILES, build, library, prepare, sha256, solve, validate_solution
 except ImportError:
     from data_identity import dataset_identity
     from solver import PROFILES, build, library, prepare, sha256, solve, validate_solution
+
+_worker_needs_warmup = False
 
 
 def summarize(rows):
@@ -34,7 +42,8 @@ def summarize(rows):
     return {
         "scenarios": len(rows), "completed_tasks": done, "total_tasks": total,
         "completion_rate": done / total, "completion_percent": 100.0 * done / total,
-        "mean_cost": float(np.mean([row["cost"] for row in rows])),
+        # imap_unordered changes summation order; keep serial/parallel means identical.
+        "mean_cost": math.fsum(row["cost"] for row in rows) / len(rows),
         "inference_seconds_total": float(durations.sum()),
         "inference_seconds_per_scenario": float(durations.mean()),
         "inference_seconds_p50": float(np.median(durations)),
@@ -56,6 +65,86 @@ def taptc_group(name):
     return ("tight" if match.group(1) == "1" else "slack") if match else ""
 
 
+def initialize_worker():
+    global _worker_needs_warmup
+    # The parent handles Ctrl+C and terminates the pool on interruption.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    torch.set_num_threads(1)
+    _worker_needs_warmup = True
+
+
+@contextmanager
+def worker_thread_limits():
+    """Limit native threads before spawned workers import NumPy/PyTorch."""
+    names = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+             "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
+    original = {name: os.environ.get(name) for name in names}
+    try:
+        os.environ.update({name: "1" for name in names})
+        yield
+    finally:
+        for name, value in original.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def evaluate_scenario(job):
+    """Solve one scenario's configurations; only the parent writes result files."""
+    global _worker_needs_warmup
+    data = job["data"]
+    if _worker_needs_warmup:
+        # Keep imports/library loading and warmup outside each solve's timers.
+        # Run as a task so a warmup exception is propagated to the parent.
+        solve(data, limit=1, seed=job["seed"], backend=job["backend"], service_time=job["service_time"],
+              objective=job.get("objective", "completion"))
+        _worker_needs_warmup = False
+    seed = (job["seed"] + job["scenario_index"] + job["repeat"] * 1000003) % 2**64
+    records = []
+    for profile, algorithm in job["combinations"]:
+        cpu_start = time.process_time()
+        start = time.perf_counter()
+        result = solve(data, algorithm=algorithm, profile=profile, seed=seed,
+                       service_time=job["service_time"], limit=job["limit"], backend=job["backend"],
+                       objective=job.get("objective", "completion"))
+        duration = time.perf_counter() - start
+        cpu_duration = time.process_time() - cpu_start
+        metrics = validate_solution(data, result, job["service_time"])
+        row = dict(backend=job["backend"], algorithm=algorithm, profile=profile, repeat=job["repeat"],
+                   scenario_index=job["scenario_index"], instance=job["instance"],
+                   deadline_group=job["deadline_group"],
+                   seed=seed, task_count=data["n"], n_agents=data["m"],
+                   **metrics, completion_percent=100.0 * metrics["tasks_done"] / data["n"],
+                   native_completed_tasks=result["native_completed_tasks"],
+                   iterations=result["iterations"], best_iteration=result["best_iteration"],
+                   inference_seconds=duration, cpu_seconds=cpu_duration)
+        row.update(path_planner=job["path_planner"], navigation_key=job["navigation_key"],
+                   objective=job.get("objective", "completion"))
+        route_record = dict(algorithm=algorithm, profile=profile, repeat=job["repeat"],
+                            scenario_index=job["scenario_index"], routes=result["routes"],
+                            finish_times=result["finish_times"].tolist(),
+                            path_planner=job["path_planner"], navigation_key=job["navigation_key"],
+                            objective=job.get("objective", "completion"))
+        records.append((row, route_record))
+    return records
+
+
+def scenario_jobs(prepared, names, input_groups, opts, navigation_keys):
+    # Alternate algorithm/profile order between scenarios to reduce ordering effects.
+    combinations = [(profile, algorithm) for profile in opts.profiles for algorithm in opts.algorithms]
+    for repeat in range(opts.repeats):
+        for index, data in enumerate(prepared):
+            selected = [pair for pair in combinations
+                        if not opts.match_taptc_groups or pair[0] == input_groups[index]]
+            yield dict(data=data, instance=names[index], deadline_group=input_groups[index],
+                       scenario_index=opts.offset + index, repeat=repeat, seed=opts.seed,
+                       combinations=selected if index % 2 == 0 else selected[::-1],
+                       backend=opts.backend, service_time=opts.service_time, limit=opts.limit,
+                       objective=getattr(opts, "objective", "completion"),
+                       path_planner=opts.path_planner, navigation_key=navigation_keys[index])
+
+
 def main(args=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path,
@@ -66,6 +155,8 @@ def main(args=None):
                         help="Default: EILS/results/n100_train_matched_1000_<backend>")
     parser.add_argument("--algorithms", choices=["ils", "eils"], nargs="+", default=["ils", "eils"])
     parser.add_argument("--profiles", choices=list(PROFILES), nargs="+", default=list(PROFILES))
+    parser.add_argument("--objective", choices=["completion", "cost"], default="completion",
+                        help="Maximize on-time task count, or minimize cost after completing every candidate")
     parser.add_argument("--match_taptc_groups", action="store_true",
                         help="Run only tight on group1 and slack on group2, once per algorithm/scenario")
     parser.add_argument("--seed", type=int, default=20261025)
@@ -74,7 +165,18 @@ def main(args=None):
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--service_time", choices=["continuous", "ceil"], default="continuous")
     parser.add_argument("--limit", type=int, help="Override iterations/trials, for verification only")
-    parser.add_argument("--progress_every", type=int, default=25)
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Number of CPU worker processes; default 1 preserves serial evaluation")
+    parser.add_argument("--path_planner", choices=["auto", "euclidean", "visibility_dijkstra"], default="auto",
+                        help="auto uses visibility graph + Dijkstra for obstacle datasets, Euclidean otherwise")
+    parser.add_argument("--cache_dir", type=Path, default=REPO / "z_test_path/cache",
+                        help="Navigation cache shared with z_test_path; independent of output_dir")
+    parser.add_argument("--visibility_epsilon", type=float, default=DEFAULT_VISIBILITY_EPSILON)
+    parser.add_argument("--path_workers", type=int, default=1,
+                        help="CPU processes for the separate path precomputation phase")
+    parser.add_argument("--rebuild_cache", action="store_true")
+    parser.add_argument("--progress_every", type=int, default=25,
+                        help="Log after the first completed scenario, then every N scenarios; 0 disables progress")
     opts = parser.parse_args(args)
     if opts.repeats < 1 or opts.offset < 0 or not 0 <= opts.seed < 2**64:
         parser.error("Invalid repeats, offset or seed")
@@ -82,25 +184,86 @@ def main(args=None):
         parser.error("num_samples must be positive")
     if opts.limit is not None and opts.limit < 1:
         parser.error("limit must be positive")
+    if opts.workers < 1:
+        parser.error("workers must be positive")
+    if opts.path_workers < 1:
+        parser.error("path_workers must be positive")
+    if opts.progress_every < 0:
+        parser.error("progress_every must be nonnegative")
     output = (opts.output_dir or HERE / "results" / ("n100_train_matched_1000_" + opts.backend)).resolve()
     if output != HERE and HERE not in output.parents:
         parser.error("output_dir must be inside EILS, as requested")
     if output.exists() and any(output.iterdir()):
         parser.error("Output directory is not empty: {}".format(output))
+    if opts.progress_every:
+        print("Loading dataset: {}".format(opts.data.resolve()), flush=True)
     torch.set_num_threads(1)
-    dataset = load_file_dataset([opts.data.resolve()], offset=opts.offset, num_samples=opts.num_samples)
-    prepared = [prepare(instance) for instance in dataset]
+    dataset, obstacle_map, extent = load_evaluation_data(opts.data, opts.offset, opts.num_samples)
+    if not len(dataset):
+        parser.error("No scenarios selected")
+    if opts.path_planner == "auto":
+        opts.path_planner = "visibility_dijkstra" if obstacle_map is not None else "euclidean"
+    if (obstacle_map is not None) != (opts.path_planner == "visibility_dijkstra"):
+        parser.error("Obstacle datasets require visibility_dijkstra; visibility_dijkstra requires an obstacle map")
+    if obstacle_map is not None:
+        # Validate epsilon even when every scenario hits the disk cache.
+        make_planner(obstacle_map, path_planner=opts.path_planner, visibility_epsilon=opts.visibility_epsilon)
     input_groups = [taptc_group(name) for name in dataset.names]
     if opts.match_taptc_groups and ("" in input_groups or not set(input_groups).issubset(opts.profiles)):
         parser.error("--match_taptc_groups requires original TAPTC cases and their matching --profiles")
+    output.mkdir(parents=True, exist_ok=True)
+    navigation_keys = [""] * len(dataset)
+    navigations = [None] * len(dataset)
+    planning_rows = []
+    path_workers = min(opts.path_workers, len(dataset)) if obstacle_map is not None else 0
+    planning_started = time.perf_counter()
+    if obstacle_map is not None:
+        if opts.progress_every:
+            print("Precomputing visibility_dijkstra paths: {} scenarios, path_workers={}, cache={}".format(
+                len(dataset), path_workers, opts.cache_dir.resolve()), flush=True)
+        jobs = ((opts.offset + index,
+                 {name: instance[name].cpu().numpy() for name in ("loc", "robots_start_location", "n_agents")},
+                 obstacle_map, extent, opts.cache_dir.resolve(),
+                 opts.visibility_epsilon, opts.rebuild_cache) for index, instance in enumerate(dataset))
+        with (worker_thread_limits() if path_workers > 1 else nullcontext()), \
+                (multiprocessing.get_context("spawn").Pool(path_workers, initializer=initialize_worker)
+                 if path_workers > 1 else nullcontext(None)) as pool:
+            results = pool.imap_unordered(plan_scenario, jobs, chunksize=1) if pool else map(plan_scenario, jobs)
+            for completed, (index, tables, row) in enumerate(results, 1):
+                navigations[index - opts.offset] = tables
+                navigation_keys[index - opts.offset] = row["navigation_key"]
+                planning_rows.append(row)
+                if opts.progress_every and (completed == 1 or completed % opts.progress_every == 0
+                                            or completed == len(dataset)):
+                    print("Paths {}/{} scenarios; cache hits {}".format(
+                        completed, len(dataset), sum(item["cache_hit"] for item in planning_rows)), flush=True)
+        planning_rows.sort(key=lambda row: row["scenario_index"])
+        write_csv(output / "path_planning.csv", planning_rows)
+    planning_wall = time.perf_counter() - planning_started if obstacle_map is not None else 0.
+    prepared = [prepare(instance, navigation) for instance, navigation in zip(dataset, navigations)]
+    navigation_config = dict(path_planner=opts.path_planner, cache_dir=str(opts.cache_dir.resolve()),
+                             visibility_epsilon=opts.visibility_epsilon if obstacle_map is not None else None,
+                             path_workers=path_workers, path_workers_requested=opts.path_workers,
+                             rebuild_cache=opts.rebuild_cache, navigation_keys=navigation_keys)
+    if obstacle_map is not None:
+        snapshot = output / "path_distances.npz"
+        np.savez_compressed(snapshot, **{"{}_{}".format(name, index): data[name]
+                            for index, data in enumerate(prepared)
+                            for name in ("task_to_task", "robot_to_task")})
+        navigation_config.update(planner=planner_settings(opts.path_planner, visibility_epsilon=opts.visibility_epsilon)["planner"],
+                                 path_distances_file=snapshot.name, path_distances_sha256=sha256(snapshot))
+    else:
+        navigation_config["planner"] = "Euclidean distance"
+    total_scenarios = len(prepared) * opts.repeats
+    workers = min(opts.workers, total_scenarios)
     identity = dataset_identity(opts.data)
     binary = None
     if opts.backend == "cpp":
         binary = build()
         library()
     # Exclude imports/compilation, data loading/conversion and one warmup from timing.
-    solve(prepared[0], limit=1, seed=opts.seed, backend=opts.backend, service_time=opts.service_time)
-    output.mkdir(parents=True, exist_ok=True)
+    solve(prepared[0], limit=1, seed=opts.seed, backend=opts.backend, service_time=opts.service_time,
+          objective=opts.objective)
     try:
         cpu_model = next(line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines()
                          if line.startswith("model name"))
@@ -110,6 +273,7 @@ def main(args=None):
                       "solver_py_sha256": sha256(HERE / "solver.py"),
                       "evaluate_py_sha256": sha256(HERE / "evaluate.py"),
                       "data_identity_py_sha256": sha256(HERE / "data_identity.py")}
+    implementation["navigation_py_sha256"] = sha256(HERE / "navigation.py")
     if opts.backend == "cpp":
         implementation.update(solver_cpp_sha256=sha256(HERE / "solver.cpp"),
                               binary_sha256=sha256(binary),
@@ -119,6 +283,9 @@ def main(args=None):
         implementation.update(python_solver_sha256=sha256(HERE / "python_solver.py"),
                               search_implementation="Python control and route operations; NumPy insertion candidates; no compiled solver extension")
     config = {
+        **navigation_config,
+        **summarize_planning(planning_rows),
+        "path_planning_wall_seconds": planning_wall,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "backend": opts.backend,
         "dataset": str(opts.data.resolve()), "dataset_sha256": identity["sha256"],
@@ -132,17 +299,28 @@ def main(args=None):
         "scenario_seed_rule": "(seed + global_scenario_index + repeat * 1000003) modulo 2**64",
         "random_generator": "MT19937-64; raw uint64 output modulo tour length",
         "service_time": opts.service_time,
-        "search_objective": "maximize number of deadline-feasible tasks; strict improvement; first best on ties",
+        "objective": opts.objective,
+        "search_objective": ("minimize full-coverage cost after residual completion of each candidate; strict improvement; first best on ties"
+                             if opts.objective == "cost" else
+                             "maximize number of deadline-feasible tasks; strict improvement; first best on ties"),
+        "search_neighborhood": "deadline-feasible insertion and original ILS/EILS perturbations; cost mode scores completed candidates without changing feasible search state",
         "residual_policy": "append unselected tasks to earliest-free robot using minimum travel+service time",
         "cost": "sum(finish_time/deadline for every task with finish_time > deadline), after residual completion",
         "fidelity": "paper-algorithm reimplementation with documented continuous-time and full-coverage adapters; not author-code replication",
         "capam_baseline_parameters_published": False,
         "timing": {
-            "device": "CPU", "workers": 1, "native_threads": 1, "batch_size": 1,
+            "device": "CPU", "workers": workers, "workers_requested": opts.workers,
+            "native_threads": 1, "batch_size": 1,
+            "parallel_unit": "scenario", "process_start_method": "spawn" if workers > 1 else None,
             "warmup_calls": 1,
+            "warmup_scope": "parent", "worker_warmup_calls_per_process": 1 if workers > 1 else 0,
             "includes": "{} solve wrapper, pairwise travel/service preparation, entire search, residual completion, route extraction".format(opts.backend),
-            "excludes": "compilation, library/model loading, dataset I/O, tensor conversion, warmup, independent route replay, metrics and result I/O",
+            "excludes": "path planning, cache I/O, compilation, library/model loading, dataset I/O, tensor conversion, warmup, independent route replay, metrics, process startup, IPC and result I/O",
+            "path_planning_seconds_total": "Sum of actual graph construction, Dijkstra searches and distance-table computation per selected scenario, excluding cache I/O; cache hits contribute zero; counted once across all algorithms/profiles/repeats",
+            "path_planning_wall_seconds": "Separate precomputation phase wall time, including cache I/O and planning worker startup/IPC; excludes search and distance snapshot export",
             "clock": "perf_counter wall time; process_time also reported",
+            "evaluation_wall_includes": "evaluation, route replay, result I/O, and parallel pool startup/shutdown and IPC",
+            "latency_context": "serial" if workers == 1 else "concurrent CPU workers; per-solve latency includes resource contention",
         },
         "hardware": {"cpu": cpu_model, "logical_cpus": os.cpu_count(),
                      "affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
@@ -154,48 +332,34 @@ def main(args=None):
     rows = []
     started = time.perf_counter()
     total_runs = len(prepared) * len(opts.algorithms) * (1 if opts.match_taptc_groups else len(opts.profiles)) * opts.repeats
+    if opts.progress_every:
+        print("Starting evaluation: {} scenarios, {} runs, backend={}, workers={}; results: {}".format(
+            total_scenarios, total_runs, opts.backend, workers, output), flush=True)
     with (output / "scenarios.csv").open("w", newline="", encoding="utf-8") as scenarios, \
-            (output / "routes.jsonl").open("w", encoding="utf-8") as routes_file:
+            (output / "routes.jsonl").open("w", encoding="utf-8") as routes_file, \
+            (worker_thread_limits() if workers > 1 else nullcontext()) as thread_limits, \
+            (multiprocessing.get_context("spawn").Pool(workers, initializer=initialize_worker)
+             if workers > 1 else nullcontext(None)) as pool:
         writer = None
-        # Alternate algorithm/profile order between scenarios to reduce ordering effects.
-        combinations = [(profile, algorithm) for profile in opts.profiles for algorithm in opts.algorithms]
-        for repeat in range(opts.repeats):
-            for index, data in enumerate(prepared):
-                global_index = opts.offset + index
-                seed = (opts.seed + global_index + repeat * 1000003) % 2**64
-                selected_combinations = [pair for pair in combinations
-                                         if not opts.match_taptc_groups or pair[0] == input_groups[index]]
-                for profile, algorithm in (selected_combinations if index % 2 == 0 else selected_combinations[::-1]):
-                    cpu_start = time.process_time()
-                    start = time.perf_counter()
-                    result = solve(data, algorithm=algorithm, profile=profile, seed=seed,
-                                   service_time=opts.service_time, limit=opts.limit, backend=opts.backend)
-                    duration = time.perf_counter() - start
-                    cpu_duration = time.process_time() - cpu_start
-                    metrics = validate_solution(data, result, opts.service_time)
-                    row = dict(backend=opts.backend, algorithm=algorithm, profile=profile, repeat=repeat,
-                               scenario_index=global_index, instance=dataset.names[index],
-                               deadline_group=input_groups[index],
-                               seed=seed, task_count=data["n"], n_agents=data["m"],
-                               **metrics, completion_percent=100.0 * metrics["tasks_done"] / data["n"],
-                               native_completed_tasks=result["native_completed_tasks"],
-                               iterations=result["iterations"], best_iteration=result["best_iteration"],
-                               inference_seconds=duration, cpu_seconds=cpu_duration)
-                    if writer is None:
-                        writer = csv.DictWriter(scenarios, fieldnames=list(row))
-                        writer.writeheader()
-                    writer.writerow(row)
-                    route_record = dict(algorithm=algorithm, profile=profile, repeat=repeat,
-                                        scenario_index=global_index, routes=result["routes"],
-                                        finish_times=result["finish_times"].tolist())
-                    routes_file.write(json.dumps(route_record, separators=(",", ":")) + "\n")
-                    rows.append(row)
-                if opts.progress_every and ((index + 1) % opts.progress_every == 0 or index + 1 == len(prepared)):
-                    elapsed = time.perf_counter() - started
-                    print("{}/{} runs, {:.1f}s elapsed, {:.1f}s estimated remaining".format(
-                        len(rows), total_runs, elapsed, elapsed * (total_runs - len(rows)) / len(rows)), flush=True)
-                    scenarios.flush()
-                    routes_file.flush()
+        jobs = scenario_jobs(prepared, dataset.names, input_groups, opts, navigation_keys)
+        results = pool.imap_unordered(evaluate_scenario, jobs, chunksize=1) if pool else map(evaluate_scenario, jobs)
+        for completed, records in enumerate(results, 1):
+            for row, route_record in records:
+                if writer is None:
+                    writer = csv.DictWriter(scenarios, fieldnames=list(row))
+                    writer.writeheader()
+                writer.writerow(row)
+                routes_file.write(json.dumps(route_record, separators=(",", ":")) + "\n")
+                rows.append(row)
+            # Keep partial results visible even when progress logging is disabled.
+            scenarios.flush()
+            routes_file.flush()
+            if opts.progress_every and (completed == 1 or completed % opts.progress_every == 0
+                                        or completed == total_scenarios):
+                elapsed = time.perf_counter() - started
+                print("{}/{} scenarios, {}/{} runs, {:.1f}s elapsed, {:.1f}s estimated remaining".format(
+                    completed, total_scenarios, len(rows), total_runs, elapsed,
+                    elapsed * (total_runs - len(rows)) / len(rows)), flush=True)
     grouped = defaultdict(list)
     for row in rows:
         grouped[(row["algorithm"], row["profile"], row["n_agents"])].append(row)
@@ -239,7 +403,18 @@ def main(args=None):
     report = ["# ILS / EILS 固定数据集测试", "",
               "数据：`{}`，共 {} 个原始场景。".format(opts.data.resolve(), len(dataset)), "",
               "求解后端：`{}`。".format(opts.backend), "",
-              "时间为单 CPU 线程、逐场景完整求解的平均延迟。", "",
+              "优化目标：`{}`（{}）。".format(opts.objective,
+                  "最小化每轮候选方案补全全部任务后的 cost" if opts.objective == "cost" else "最大化按时完成任务数"), "",
+              "距离：`{}`（{}）；推理全程使用预计算距离表。".format(opts.path_planner, navigation_config["planner"])
+                  if obstacle_map is not None else "距离：欧几里得距离。", "",
+              "路径规划累计时间：{:.6f} 秒；规划阶段墙钟时间：{:.6f} 秒；缓存命中 {}/{}。".format(
+                  config["path_planning_seconds_total"], planning_wall, config["cache_hits"], len(planning_rows)), "",
+              "路径规划与缓存读写不计入推理时间；每个场景只预计算一次，供所有算法、参数组和重复运行复用。", "",
+              "CPU 工作进程数：{}；每个进程逐场景求解。".format(workers), "",
+              ("时间为单 CPU 线程、逐场景完整求解的平均延迟。" if workers == 1 else
+               "时间为多个 CPU 进程并行运行时，单次完整求解的平均延迟，可能受资源竞争影响；不是整批耗时除以求解次数。"), "",
+              "整批评估墙钟时间：{:.3f} 秒；各次推理时间之和在并行时可大于整批墙钟时间。".format(
+                  summary["evaluation_wall_seconds"]), "",
               "算法细节、复现边界和 cost 补全规则见 [SOURCES.md](../../SOURCES.md)。", ""]
     if matched_models:
         report.extend(["## 原始 TAPTC 分组对应参数", "",
@@ -283,6 +458,8 @@ def main(args=None):
     (output / "REPORT.md").write_text("\n".join(report))
     print(json.dumps({name: {key: value for key, value in model.items() if key != "by_robot_count"}
                       for name, model in models.items()}, indent=2))
+    print(json.dumps(dict(path_planner=opts.path_planner, **summarize_planning(planning_rows),
+                          path_planning_wall_seconds=planning_wall), indent=2))
     print("Results: {}".format(output), flush=True)
     return summary
 

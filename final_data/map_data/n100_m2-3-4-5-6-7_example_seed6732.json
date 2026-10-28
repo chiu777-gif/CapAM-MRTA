@@ -1,0 +1,75 @@
+{
+  "dataset": "/home/hustcsib/chiu_code/CapAM-MRTA/final_data/map_data/n100_m2-3-4-5-6-7_example_seed6732.pkl",
+  "scenarios": 300,
+  "tasks_per_scenario": 100,
+  "seed": 6732,
+  "physical_parameters": {
+    "graph_size": 100,
+    "robot_counts": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "map_size": 100.0,
+    "agent_max_speed": 1.0,
+    "deadline_min": 50.0,
+    "deadline_max": 600.0,
+    "workload_min": 10.0,
+    "workload_max": 30.0,
+    "work_capacity_min": 1.0,
+    "work_capacity_max": 3.0,
+    "coordinate_scale": 100.0,
+    "workload_scale": 100.0
+  },
+  "units": {
+    "representation": "normalized",
+    "time": "seconds",
+    "coordinate_scale": 100.0,
+    "workload_scale": 100.0
+  },
+  "source_map": "/home/hustcsib/chiu_code/CapAM-MRTA/z_test_path/maps/example.txt",
+  "obstacle_map": {
+    "grid": [
+      "..........",
+      "..###.....",
+      "..###.....",
+      "..........",
+      ".....###..",
+      ".....#....",
+      ".....#....",
+      "..........",
+      ".###......",
+      ".........."
+    ],
+    "rows": 10,
+    "columns": 10,
+    "free_cells": 86,
+    "obstacle_cells": 14,
+    "symbols": {
+      "#": "obstacle",
+      ".": "free"
+    },
+    "origin": "bottom-left; x increases right; y increases up; first text row is top",
+    "physical_cell_size": [
+      10.0,
+      10.0
+    ],
+    "normalized_cell_size": [
+      0.1,
+      0.1
+    ]
+  },
+  "distributions": {
+    "task_coordinates": "continuous uniform over all free cells",
+    "robot_initial_coordinates": "continuous uniform over all free cells, including inactive slots",
+    "depot_coordinates": "continuous uniform over all free cells; resampled per scenario",
+    "robot_count": "uniform choice from robot_counts; n_agents fixes one count",
+    "deadline": "continuous uniform [deadline_min, deadline_max]",
+    "workload": "continuous uniform [workload_min, workload_max]",
+    "work_capacity": "continuous uniform [work_capacity_min, work_capacity_max]"
+  },
+  "path_distances_precomputed": false
+}

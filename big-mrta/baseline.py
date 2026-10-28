@@ -1,9 +1,10 @@
-"""Run the unmodified authors' TAPTC policy under two explicit simulators.
+"""BiG-MRTA simulators with completion incentives or local cost matching.
 
 upstream_taptc: the state transitions of main_bigmrta_TAPTC.py, including its
 ceil(service time), time grid, simultaneous decisions and shared distanceMatrix.
 capam_full_visit: the repository's continuous-time StateMRTA and all-task rule.
-Only a zero assignment triggers deadline relaxation, using the same policy.
+Completion retains the authors' policy and relaxes only on zero assignments.
+Cost uses an adapted Hungarian minimum-immediate-penalty policy.
 """
 from dataclasses import dataclass
 import os
@@ -20,6 +21,7 @@ os.environ.setdefault('MPLCONFIGDIR', str(HERE / '.cache' / 'matplotlib'))
 
 import numpy as np
 from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
 import torch
 
 import bigmrta_taptc as upstream
@@ -40,6 +42,8 @@ class Scenario:
     capacities: np.ndarray
     deadlines: np.ndarray
     speed: float
+    navigation: dict = None
+    coordinate_scale: float = 100.
 
     @property
     def n_tasks(self):
@@ -50,7 +54,7 @@ class Scenario:
         return len(self.starts)
 
 
-def prepare(instance, coordinate_scale=100., workload_scale=100., taptc_source=None):
+def prepare(instance, coordinate_scale=100., workload_scale=100., taptc_source=None, navigation=None):
     """Retain replay tensors; use original physical values for TAPTC text.
 
     A float32 round trip can turn an exact service time of 20 into 20.000001,
@@ -69,6 +73,14 @@ def prepare(instance, coordinate_scale=100., workload_scale=100., taptc_source=N
         array('robots_work_capacity', workload_scale)[:n], array('deadline'),
         float(instance['max_speed']) * coordinate_scale,
     )
+    scenario.navigation = navigation
+    scenario.coordinate_scale = coordinate_scale
+    if navigation is not None:
+        tasks, slots = len(instance['loc']), len(instance['robots_start_location'])
+        table = torch.zeros(1 + tasks + slots, 1 + tasks)
+        table[1:tasks + 1, 1:] = torch.from_numpy(navigation['task_to_task'])
+        table[tasks + 1:, 1:] = torch.from_numpy(navigation['robot_to_task'])
+        scenario.model_input['path_distances'] = table[None]
     if taptc_source is not None:
         task_path = Path(taptc_source)
         robot_path = task_path.parent.parent / 'agent' / ('a' + task_path.stem.split('a', 1)[1] + '.txt')
@@ -84,12 +96,22 @@ def prepare(instance, coordinate_scale=100., workload_scale=100., taptc_source=N
     return scenario
 
 
+def robot_distances(scenario, robot):
+    if scenario.navigation is None:
+        locations = np.vstack((scenario.starts[robot], scenario.locations))
+        return cdist(locations, locations)
+    distance = np.zeros((scenario.n_tasks + 1, scenario.n_tasks + 1))
+    distance[1:, 1:] = scenario.navigation['task_to_task']
+    distance[0, 1:] = scenario.navigation['robot_to_task'][robot]
+    distance[1:, 0] = distance[0, 1:]
+    return distance * scenario.coordinate_scale
+
+
 def matrices(scenario, ceil_service):
     times = {}
     work = np.r_[0., scenario.workload]
     for robot in range(scenario.n_robots):
-        locations = np.vstack((scenario.starts[robot], scenario.locations))
-        distance = cdist(locations, locations)
+        distance = robot_distances(scenario, robot)
         service = work / scenario.capacities[robot]
         if ceil_service:
             service = np.ceil(service)
@@ -117,13 +139,44 @@ def choose(t, robot, state, nodes, tasks, distance, times, deadlines, horizon):
     )[0]
 
 
-def solve_upstream(scenario):
+OBJECTIVES = {
+    'completion': 'Original deadline-feasible incentive matching; relax deadlines only on empty assignments in full-visit mode. '
+                  'Heuristic for on-time completion, not a global maximum-completion solver.',
+    'cost': 'Hungarian minimum predicted added deadline cost: 0 when finish <= deadline, otherwise finish/deadline. '
+            'All remaining tasks are eligible, including late ones. Equal-cost assignments follow SciPy deterministic row/task order. '
+            'If the current robot is unmatched when tasks are fewer than robots, select its minimum-cost task. '
+            'Visits every task; local matching does not guarantee minimum final schedule cost.',
+}
+
+
+def choose_cost(robot, state, tasks, times, deadlines):
+    """Minimize the sum of immediate penalties in the next matching.
+
+    Every edge is allowed: late tasks must eventually be visited. Predictions
+    include each robot's availability and its own path-based travel/service
+    times. Busy robots compete using their future availability, as in upstream.
+    """
+    task_ids = np.asarray(tasks, dtype=int)
+    finish = np.stack([
+        state[r, 1] + times['robot-{}'.format(r + 1)][int(state[r, 0]), task_ids]
+        for r in range(len(state))
+    ])
+    penalty = np.where(finish > deadlines[task_ids], finish / deadlines[task_ids], 0.)
+    rows, columns = linear_sum_assignment(penalty)
+    match = columns[rows == robot]
+    column = int(match[0]) if len(match) else int(np.argmin(penalty[robot]))
+    return int(task_ids[column])
+
+
+def solve_upstream(scenario, objective='completion'):
     """Literal decision/state-update order of the original TAPTC driver.
 
     Logging, plotting, file I/O and history-array growth are omitted. None feeds
     back into the policy. The driver counts allocations as task completions;
     actual deadline completion is measured separately here from finish times.
     """
+    if objective != 'completion':
+        raise ValueError('upstream_taptc only supports objective=completion; cost requires capam_full_visit')
     distance, times = matrices(scenario, ceil_service=True)
     state, nodes, tasks, deadlines = initial_arrays(scenario)
     horizon = int(1.1 * max(scenario.deadlines))
@@ -180,24 +233,34 @@ def solve_upstream(scenario):
                 upstream_travel_cost=float(state[:, 5].sum()))
 
 
-def solve_full_visit(scenario):
-    """Direct upstream policy calls with StateMRTA's exact all-task dynamics."""
+def solve_full_visit(scenario, objective='completion'):
+    """Configurable matching with StateMRTA's exact all-task dynamics."""
+    if objective not in OBJECTIVES:
+        raise ValueError('Unknown objective: ' + objective)
     distance, times = matrices(scenario, ceil_service=False)
     robots, nodes, tasks, deadlines = initial_arrays(scenario)
     horizon = max(1, int(1.1 * max(scenario.deadlines)))
     relaxed_deadlines = np.full_like(deadlines, np.inf)
-    state = StateMRTA.initialize(scenario.model_input)
+    if scenario.navigation is not None:
+        from z_test_path.path_adapter import PathState
+        state = PathState.initialize(scenario.model_input)
+    else:
+        state = StateMRTA.initialize(scenario.model_input)
     events = []
     calls, relaxed_count, isolated_count = 0, 0, 0
     policy_seconds = 0.
     while tasks:
         robot = int(state.robot_taking_decision[0, 0])
         # Read availability from the common simulator, including float32 ties.
-        robots[:, 0] = state.robots_current_destination[0, :scenario.n_robots].numpy()
+        destinations = state.robots_current_destination[0, :scenario.n_robots].numpy()
+        # The policy uses local node 0 for each robot's start. PathState keeps
+        # distinct start node IDs after the tasks in its rectangular table.
+        robots[:, 0] = np.where(destinations > scenario.n_tasks, 0, destinations)
         robots[:, 1] = state.robots_next_decision_time[0, :scenario.n_robots].numpy()
         t = float(robots[robot, 1])
         started = time.perf_counter()
-        task = choose(t, robot, robots, nodes, tasks, distance, times, deadlines, horizon)
+        task = (choose_cost(robot, robots, tasks, times, deadlines) if objective == 'cost' else
+                choose(t, robot, robots, nodes, tasks, distance, times, deadlines, horizon))
         calls += 1
         relaxed = task == 0
         if relaxed:
@@ -240,20 +303,24 @@ SOLVERS = {'upstream_taptc': solve_upstream, 'capam_full_visit': solve_full_visi
 def replay_full_visit(scenario, result):
     """Outside timed inference: verify every robot, finish time and final cost."""
     from problems.mrta.problem_mrta import MRTA
+    if scenario.navigation is not None:
+        from z_test_path.path_adapter import PathMRTA
+        MRTA = PathMRTA
     sequence = torch.tensor([[event['task'] for event in result['events']]])
     state = MRTA.replay(scenario.model_input, sequence)
     np.testing.assert_array_equal(state.tasks_finish_time[0].numpy(), result['finish_times'])
     # A per-robot NumPy replay additionally checks the recorded robot IDs.
-    positions = scenario.starts.copy()
     available = np.zeros(scenario.n_robots)
+    previous = np.zeros(scenario.n_robots, dtype=int)
+    distances = [robot_distances(scenario, robot) for robot in range(scenario.n_robots)]
     for event in result['events']:
         robot, task = event['robot'], event['task'] - 1
         if not np.isclose(available[robot], event['decision_time'], atol=2e-3, rtol=1e-6):
             raise AssertionError('Robot availability differs during independent replay')
-        finish = (available[robot] + np.linalg.norm(positions[robot] - scenario.locations[task])
+        finish = (available[robot] + distances[robot][previous[robot], task + 1]
                   / scenario.speed + scenario.workload[task] / scenario.capacities[robot])
         if not np.isclose(finish, event['finish_time'], atol=2e-3, rtol=1e-6):
             raise AssertionError('Finish time differs during independent replay')
         available[robot] = event['finish_time']
-        positions[robot] = scenario.locations[task]
+        previous[robot] = task + 1
     return float(state.get_final_cost()[0, 0]), int(state.tasks_done_success[0, 0])

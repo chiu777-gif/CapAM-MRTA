@@ -50,10 +50,14 @@ class Search:
         speed = data["speed"]
         # NumPy hypot matches the C++ libm hypot in this environment. Python
         # math.hypot uses a different norm algorithm and can shift ties by 1 ULP.
-        self.travel = np.hypot(xy[:, None, 0] - xy[None, :, 0],
-                               xy[:, None, 1] - xy[None, :, 1]) / speed
-        self.start_travel = np.hypot(starts[:, None, 0] - xy[None, :, 0],
-                                     starts[:, None, 1] - xy[None, :, 1]) / speed
+        if "task_to_task" in data:
+            self.travel = data["task_to_task"] / speed
+            self.start_travel = data["robot_to_task"] / speed
+        else:
+            self.travel = np.hypot(xy[:, None, 0] - xy[None, :, 0],
+                                   xy[:, None, 1] - xy[None, :, 1]) / speed
+            self.start_travel = np.hypot(starts[:, None, 0] - xy[None, :, 0],
+                                         starts[:, None, 1] - xy[None, :, 1]) / speed
         self.service = data["workload"][None, :] / data["robots_work_capacity"][:, None]
         if service_time == "ceil":
             self.service = np.ceil(self.service)
@@ -141,6 +145,19 @@ class Search:
                     kept.append(task)
             self.tours[robot] = kept
 
+    def completed_cost(self):
+        """Score the full solution without changing the feasible search state."""
+        tours = [tour.copy() for tour in self.tours]
+        used = self.used.copy()
+        try:
+            finished = self.complete_all()["finish_times"]
+            # Sum in task order, matching the C++ backend's objective comparisons.
+            return sum(float(finished[task] / self.deadline[task])
+                       for task in range(self.n) if finished[task] > self.deadline[task])
+        finally:
+            self.tours = tours
+            self.used[:] = used
+
     def complete_all(self):
         self.used[:] = False
         ready = [0.0] * self.m
@@ -169,25 +186,29 @@ class Search:
         return {"finish_times": finished, "robots": robots, "routes": self.tours}
 
 
-def solve_python(data, algorithm, limit, coefficient, seed, service_time):
+def solve_python(data, algorithm, limit, coefficient, seed, service_time, objective="completion"):
     search = Search(data, service_time)
     rng = MT19937_64(seed)
     best = [[] for _ in range(data["m"])]
     best_score, iterations, best_iteration, trials = -1, 0, 0, 0
+    best_cost = math.inf
     remove, start = 1, 0
     threshold = max(1, math.floor(data["n"] * coefficient / data["m"]))
     while (iterations < limit if algorithm == "eils" else
            iterations < 1 if algorithm == "construct" else trials < limit):
         iterations += 1
         score = search.construct()
-        if score > best_score:
+        cost = search.completed_cost() if objective == "cost" else math.inf
+        improved = cost < best_cost if objective == "cost" else score > best_score
+        if improved:
             best_score = score
+            best_cost = cost
             best = [tour.copy() for tour in search.tours]
             best_iteration = iterations
             trials, remove = 0, 1
         else:
             trials += 1
-        if score == data["n"] or algorithm == "construct":
+        if (cost == 0 if objective == "cost" else score == data["n"]) or algorithm == "construct":
             break
         if algorithm == "eils":
             count = max(1, math.floor(score * coefficient / data["m"]))
